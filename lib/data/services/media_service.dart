@@ -40,6 +40,12 @@ class ScanResult {
 }
 
 class MediaService {
+  static String _folderFromPath(String? relativePath) {
+    if (relativePath == null || relativePath.isEmpty) return 'Camera';
+    final segments = relativePath.split(RegExp(r'[\\/]')).where((s) => s.isNotEmpty).toList();
+    return segments.isNotEmpty ? segments.last : 'Camera';
+  }
+
   Future<ScanResult> fetchAllAssets({ScanScope scope = ScanScope.screenshots}) async {
     StringBuffer log = StringBuffer();
 
@@ -92,25 +98,25 @@ class MediaService {
         if (_matchesScope(asset, scope, null) && !processedIds.contains(asset.id)) {
           allAssets.add(asset);
           processedIds.add(asset.id);
+          assetAlbumMap[asset.id] = _folderFromPath(asset.relativePath);
         }
       }
-    }
+    } else {
+      // Fallback only if recentAlbum is not supported by Android provider
+      for (final album in albums) {
+        if (album.isAll) continue;
+        final count = await album.assetCountAsync;
+        if (count == 0) continue;
 
-    // 2. Iterate specific folder albums to record authoritative Android bucket names
-    for (final album in albums) {
-      if (album.isAll) continue;
-      final count = await album.assetCountAsync;
-      if (count == 0) continue;
+        final limit = count > 10000 ? 10000 : count;
+        final items = await album.getAssetListRange(start: 0, end: limit);
 
-      final limit = count > 10000 ? 10000 : count;
-      final items = await album.getAssetListRange(start: 0, end: limit);
-
-      for (var asset in items) {
-        assetAlbumMap[asset.id] = album.name;
-        // If recentAlbum was null, also collect here
-        if (recentAlbum == null && _matchesScope(asset, scope, album.name) && !processedIds.contains(asset.id)) {
-          allAssets.add(asset);
-          processedIds.add(asset.id);
+        for (var asset in items) {
+          assetAlbumMap[asset.id] = album.name;
+          if (_matchesScope(asset, scope, album.name) && !processedIds.contains(asset.id)) {
+            allAssets.add(asset);
+            processedIds.add(asset.id);
+          }
         }
       }
     }
@@ -134,6 +140,15 @@ class MediaService {
 
     if (albums.isEmpty) return [];
 
+    // Fast-path: check master videos album first
+    for (final album in albums) {
+      if (album.isAll) {
+        final count = await album.assetCountAsync;
+        final fetchCount = count > limit ? limit : count;
+        return await album.getAssetListRange(start: 0, end: fetchCount);
+      }
+    }
+
     final List<AssetEntity> allVideos = [];
     final Set<String> seenIds = {};
 
@@ -148,7 +163,7 @@ class MediaService {
           allVideos.add(item);
         }
       }
-      if (allVideos.length >= limit || album.isAll) break;
+      if (allVideos.length >= limit) break;
     }
     return allVideos;
   }

@@ -364,8 +364,8 @@ class ScanProvider extends ChangeNotifier {
       _largeVideos = [];
       _largeVideosSize = 0;
 
-      for (int i = 0; i < videos.length; i += 15) {
-        final chunk = videos.sublist(i, (i + 15 < videos.length) ? i + 15 : videos.length);
+      for (int i = 0; i < videos.length; i += 30) {
+        final chunk = videos.sublist(i, (i + 30 < videos.length) ? i + 30 : videos.length);
         final results = await Future.wait(chunk.map((v) async {
           if (_assetSizes.containsKey(v.id)) {
             return (v, _assetSizes[v.id]!);
@@ -590,7 +590,7 @@ class ScanProvider extends ChangeNotifier {
         final dateB = b.createDateSecond ?? (b.createDateTime.millisecondsSinceEpoch ~/ 1000);
         final diffSec = (dateB - dateA).abs();
 
-        if (diffSec <= 45 && a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0) {
+        if (diffSec <= 4 && a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0) {
           final ratioA = a.width / a.height;
           final ratioB = b.width / b.height;
           if ((ratioA - ratioB).abs() < 0.08) {
@@ -617,12 +617,12 @@ class ScanProvider extends ChangeNotifier {
       // 5. TARGETED BATCH RESOLUTION
       _setTargetProgress(0.48, status: 'Analyzing duplicate file sizes...');
 
-      // Step A: Stat file sizes for duplicate candidates in parallel chunks of 20
-      for (int i = 0; i < duplicateCandidates.length; i += 20) {
+      // Step A: Stat file sizes for duplicate candidates in parallel chunks of 60
+      for (int i = 0; i < duplicateCandidates.length; i += 60) {
         if (_scanSessionId != mySessionId) return;
         final chunk = duplicateCandidates.sublist(
           i,
-          (i + 20 < duplicateCandidates.length) ? i + 20 : duplicateCandidates.length,
+          (i + 60 < duplicateCandidates.length) ? i + 60 : duplicateCandidates.length,
         );
 
         final results = await Future.wait(chunk.map((asset) async {
@@ -651,7 +651,9 @@ class ScanProvider extends ChangeNotifier {
         }
 
         final ratio = (i + chunk.length) / max(1, duplicateCandidates.length);
-        _setTargetProgress(0.48 + 0.12 * ratio, status: 'Analyzing duplicate file sizes...');
+        if (i % 180 == 0 || i + chunk.length >= duplicateCandidates.length) {
+          _setTargetProgress(0.48 + 0.12 * ratio, status: 'Analyzing duplicate file sizes...');
+        }
       }
 
       // Group candidate duplicates by (dimension, size)
@@ -704,9 +706,9 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      for (int i = 0; i < burstTasks.length; i += 16) {
+      for (int i = 0; i < burstTasks.length; i += 48) {
         if (_scanSessionId != mySessionId) return;
-        final chunk = burstTasks.sublist(i, min(i + 16, burstTasks.length));
+        final chunk = burstTasks.sublist(i, min(i + 48, burstTasks.length));
 
         final chunkResults = await Future.wait(chunk.map((item) async {
           final cachedDHash = _scanCache[item.asset.id]?['dHash'] as String?;
@@ -739,14 +741,14 @@ class ScanProvider extends ChangeNotifier {
           .where((a) => _scanCache[a.id]?['is_blurry'] == null)
           .toList();
 
-      for (int i = 0; i < blurCandidates.length; i += 12) {
+      for (int i = 0; i < blurCandidates.length; i += 36) {
         if (_scanSessionId != mySessionId) return;
-        final chunk = blurCandidates.sublist(i, min(i + 12, blurCandidates.length));
+        final chunk = blurCandidates.sublist(i, min(i + 36, blurCandidates.length));
 
         final chunkResults = await Future.wait(chunk.map((asset) async {
           Uint8List? thumb;
           try {
-            thumb = await asset.thumbnailDataWithSize(const ThumbnailSize.square(96));
+            thumb = await asset.thumbnailDataWithSize(const ThumbnailSize.square(64));
           } catch (_) {}
 
           if (thumb == null) return null;
