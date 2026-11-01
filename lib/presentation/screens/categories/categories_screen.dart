@@ -135,13 +135,17 @@ class CategoriesScreen extends StatelessWidget {
                         size: sizeStr,
                         thumbnail: thumb,
                         onTap: () {
-                          context.push(
-                            '/category-cleaner',
-                            extra: {
-                              'title': categoryName,
-                              'assets': list,
-                            },
-                          );
+                          if (categoryName == 'Social & WhatsApp') {
+                            context.push('/messaging-cleaner');
+                          } else {
+                            context.push(
+                              '/category-cleaner',
+                              extra: {
+                                'title': categoryName,
+                                'assets': list,
+                              },
+                            );
+                          }
                         },
                       );
                     },

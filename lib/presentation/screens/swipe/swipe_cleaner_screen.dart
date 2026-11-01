@@ -631,12 +631,17 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
-                  IconButton.filledTonal(
-                    style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
                     ),
-                    icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                    onPressed: () => Navigator.maybePop(context),
+                    child: const Icon(
+                      Icons.style_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
                   ),
                   const Gap(12),
                   Expanded(
@@ -737,9 +742,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   24,
-                  12,
+                  8,
                   24,
-                  24 + MediaQuery.paddingOf(context).bottom,
+                  92 + MediaQuery.paddingOf(context).bottom,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1159,9 +1164,35 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
   }
 
   Widget _buildEmptyOrCompletedState(ThemeData theme, bool isDark) {
+    final isLoading = context.watch<ScanProvider>().isLoading;
+
+    if (isLoading) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 96 + MediaQuery.paddingOf(context).bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: AppColors.primary),
+              const Gap(20),
+              Text(
+                'Scanning Photos...',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Gap(6),
+              Text(
+                'Organizing photos for swipe review',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 96 + MediaQuery.paddingOf(context).bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

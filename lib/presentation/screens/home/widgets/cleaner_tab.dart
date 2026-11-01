@@ -27,7 +27,6 @@ class CleanerTab extends StatelessWidget {
            Gap(16),
            _ProgressSection(),
            _SmartCleanSection(),
-           _SwipeCleanHeroCard(),
            _DashboardSection(),
            _DebugLogSection(),
         ],
@@ -508,130 +507,6 @@ class _SmartCleanSection extends StatelessWidget {
   }
 }
 
-class _SwipeCleanHeroCard extends StatelessWidget {
-  const _SwipeCleanHeroCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-              : [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.green.withValues(alpha: 0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            context.push('/swipe-clean');
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), Color(0xFF059669)],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.style_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
-                ),
-                const Gap(16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Swipe to Clean',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF065F46),
-                            ),
-                          ),
-                          const Gap(8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.green.withValues(alpha: 0.25)
-                                  : Colors.green.shade100,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'NEW',
-                              style: TextStyle(
-                                color: isDark ? Colors.greenAccent : Colors.green.shade800,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Gap(4),
-                      Text(
-                        'Review photos effortlessly with fluid card gestures',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark ? Colors.white70 : const Color(0xFF047857),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Gap(8),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 16,
-                  color: isDark ? Colors.white54 : const Color(0xFF059669),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _DashboardSection extends StatelessWidget {
   const _DashboardSection();
 
@@ -647,6 +522,8 @@ class _DashboardSection extends StatelessWidget {
       String vidSize,
       int blurCount,
       String blurSize,
+      int socialCount,
+      String socialSize,
     })>(
       selector: (_, p) => (
         isLoading: p.isLoading,
@@ -658,6 +535,8 @@ class _DashboardSection extends StatelessWidget {
         vidSize: p.formattedLargeVideosSize,
         blurCount: p.blurryPhotos.length,
         blurSize: p.formattedBlurrySize,
+        socialCount: p.categories['Social & WhatsApp']?.length ?? 0,
+        socialSize: p.getFormattedCategorySize('Social & WhatsApp'),
       ),
       builder: (context, data, child) {
         final provider = context.read<ScanProvider>();
@@ -764,6 +643,23 @@ class _DashboardSection extends StatelessWidget {
                     const SnackBar(content: Text('No blurry photos detected in this scan area.')),
                   );
                 }
+              },
+            ),
+            const Gap(14),
+            DashboardCard(
+              title: 'WhatsApp & Social Clean',
+              count: provider.isLoading && (provider.categories['Social & WhatsApp']?.isEmpty ?? true)
+                  ? 'Scanning...'
+                  : '${data.socialCount} messaging files',
+              size: provider.isLoading && (provider.categories['Social & WhatsApp']?.isEmpty ?? true)
+                  ? '-'
+                  : '${data.socialSize} to clean',
+              icon: Icons.forum_rounded,
+              startColor: const Color(0xFF0F9D58),
+              endColor: const Color(0xFF00796B),
+              previewImages: (provider.categories['Social & WhatsApp'] ?? []).take(4).toList(),
+              onTap: () {
+                context.push('/messaging-cleaner');
               },
             ),
           ],
