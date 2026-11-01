@@ -298,6 +298,7 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
       }
 
       if (currentSimilar.isNotEmpty) {
+        processedInCluster.add(itemA.id);
         currentSimilar.insert(0, itemA.id);
         similarGroups.add(currentSimilar);
       }

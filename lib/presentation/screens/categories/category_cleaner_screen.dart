@@ -79,11 +79,24 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
       HapticFeedback.mediumImpact();
       final provider = context.read<ScanProvider>();
       final count = await provider.smartClean(specificIds: _selectedIds.toList());
-      if (mounted) {
-        Navigator.pop(context);
+      if (mounted && count > 0) {
+        setState(() {
+          _selectedIds.clear();
+          _cachedDisplayAssets = null;
+          _lastRawAssets = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Moved $count items from ${widget.title} to Trash')),
         );
+
+        final remaining = widget.title == 'Large Videos'
+            ? provider.largeVideos.length
+            : (widget.title == 'Blurry Photos'
+                ? provider.blurryPhotos.length
+                : (provider.categories[widget.title]?.length ?? 0));
+        if (remaining == 0) {
+          Navigator.pop(context);
+        }
       }
     }
   }

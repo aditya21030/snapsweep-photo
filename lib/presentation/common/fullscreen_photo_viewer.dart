@@ -59,6 +59,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
   // Video playback
   VideoPlayerController? _videoController;
   bool _isVideoInitialized = false;
+  bool _videoError = false;
   bool _isPlaying = false;
   bool _isMuted = false;
   Duration _videoPosition = Duration.zero;
@@ -76,8 +77,13 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
 
   Future<void> _initVideoPlayer() async {
     try {
-      final File? file = await widget.asset.file;
-      if (file == null || !mounted) return;
+      if (mounted) setState(() => _videoError = false);
+      File? file = await widget.asset.file;
+      file ??= await widget.asset.originFile;
+      if (file == null || !mounted) {
+        if (mounted) setState(() => _videoError = true);
+        return;
+      }
 
       final controller = VideoPlayerController.file(file);
       await controller.initialize();
@@ -97,6 +103,9 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
       await controller.play();
     } catch (e) {
       debugPrint('[Video Player Error] $e');
+      if (mounted) {
+        setState(() => _videoError = true);
+      }
     }
   }
 
@@ -468,6 +477,50 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
                 size: 54,
               ),
             ),
+        ],
+      );
+    }
+
+    if (_videoError) {
+      return Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
+        children: [
+          AssetEntityImage(
+            widget.asset,
+            isOriginal: false,
+            fit: BoxFit.contain,
+            thumbnailSize: const ThumbnailSize.square(400),
+          ),
+          Container(color: Colors.black.withValues(alpha: 0.65)),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.videocam_off_rounded, color: Colors.white70, size: 48),
+                  const Gap(12),
+                  const Text(
+                    'Cannot Preview Video',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const Gap(4),
+                  const Text(
+                    'Codec or resolution may not be supported by preview player.',
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const Gap(16),
+                  FilledButton.tonalIcon(
+                    onPressed: _initVideoPlayer,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       );
     }

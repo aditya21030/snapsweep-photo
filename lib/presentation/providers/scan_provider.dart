@@ -912,17 +912,20 @@ class ScanProvider extends ChangeNotifier {
 
     _categories.forEach((key, list) {
       list.removeWhere((a) => idsToRemove.contains(a.id));
+      _categories[key] = List.from(list);
     });
 
     for (var group in _duplicateGroups) {
       group.removeWhere((a) => idsToRemove.contains(a.id));
     }
     _duplicateGroups.removeWhere((group) => group.length < 2);
+    _duplicateGroups = List.from(_duplicateGroups);
 
     for (var group in _similarGroups) {
       group.removeWhere((a) => idsToRemove.contains(a.id));
     }
     _similarGroups.removeWhere((group) => group.length < 2);
+    _similarGroups = List.from(_similarGroups);
 
     _duplicateSize = 0;
     for (var group in _duplicateGroups) {
@@ -939,12 +942,14 @@ class ScanProvider extends ChangeNotifier {
     }
 
     _blurryPhotos.removeWhere((a) => idsToRemove.contains(a.id));
+    _blurryPhotos = List.from(_blurryPhotos);
     _blurrySize = 0;
     for (var a in _blurryPhotos) {
       _blurrySize += _assetSizes[a.id] ?? 0;
     }
 
     _largeVideos.removeWhere((a) => idsToRemove.contains(a.id));
+    _largeVideos = List.from(_largeVideos);
     _largeVideosSize = 0;
     for (var v in _largeVideos) {
       _largeVideosSize += _assetSizes[v.id] ?? 0;

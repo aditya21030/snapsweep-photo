@@ -74,7 +74,7 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
     if (confirm == true && mounted) {
       HapticFeedback.mediumImpact();
       final count = await context.read<ScanProvider>().smartClean(specificIds: _selectedIds.toList());
-      if (mounted) {
+      if (mounted && count > 0) {
         Navigator.pop(context); // Return to Cleaner Tab
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Moved $count duplicate copies to Trash!')),

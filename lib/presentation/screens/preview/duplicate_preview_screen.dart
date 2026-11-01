@@ -98,6 +98,8 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
 
             setState(() {
               _selectedIds.clear();
+              _cachedSortedGroups = null;
+              _lastRawGroups = null;
             });
           }
         }
