@@ -24,10 +24,16 @@ android {
 
     defaultConfig {
         applicationId = "com.yousful.snapsweep"
-        minSdk = 24
+        minSdk = flutter.minSdkVersion
         targetSdk = 35
         versionCode = 4
         versionName = "1.0.3"
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     signingConfigs {
