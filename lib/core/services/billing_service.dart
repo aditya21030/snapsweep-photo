@@ -31,6 +31,7 @@ class BillingService {
       }
 
       // Listen for purchase updates
+      _subscription?.cancel();
       _subscription = _iap.purchaseStream.listen(
         _onPurchaseUpdated,
         onDone: () => _subscription?.cancel(),
@@ -124,7 +125,11 @@ class BillingService {
         }
 
         if (purchaseDetails.pendingCompletePurchase) {
-          await _iap.completePurchase(purchaseDetails);
+          try {
+            await _iap.completePurchase(purchaseDetails);
+          } catch (e) {
+            debugPrint('[BillingService] completePurchase error: $e');
+          }
         }
       }
     }

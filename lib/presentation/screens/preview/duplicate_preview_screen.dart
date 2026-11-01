@@ -22,6 +22,7 @@ class DuplicatePreviewScreen extends StatefulWidget {
 class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   // Set of selected asset IDs to delete
   final Set<String> _selectedIds = {};
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -43,74 +44,78 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   }
 
   Future<void> _deleteSelected() async {
-    if (_selectedIds.isEmpty) return;
-
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+    if (_isProcessing || _selectedIds.isEmpty) return;
+    _isProcessing = true;
+    try {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
               ),
-              child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+              const Gap(12),
+              const Expanded(child: Text('Move to Trash?')),
+            ],
+          ),
+          content: Text(
+            '${_selectedIds.length} item(s) will be sent to your device\'s Trash / Recently Deleted folder.\n\nYou can easily restore them within 30 days if needed.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-            const Gap(12),
-            const Expanded(child: Text('Move to Trash?')),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+              label: const Text('Move to Trash'),
+            ),
           ],
         ),
-        content: Text(
-          '${_selectedIds.length} item(s) will be sent to your device\'s Trash / Recently Deleted folder.\n\nYou can easily restore them within 30 days if needed.',
-          style: const TextStyle(fontSize: 14, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-            label: const Text('Move to Trash'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true) {
-      HapticFeedback.mediumImpact();
-      List<String> idsToDelete = _selectedIds.toList();
-      try {
-        final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+      if (confirm == true) {
+        HapticFeedback.mediumImpact();
+        List<String> idsToDelete = _selectedIds.toList();
+        try {
+          final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
 
-        if (mounted) {
-          if (result.isNotEmpty) {
+          if (mounted) {
+            if (result.isNotEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Moved ${result.length} photos to Trash')),
+              );
+
+              // Update Provider Locally
+              await context.read<ScanProvider>().removeAssets(result);
+
+              setState(() {
+                _selectedIds.clear();
+                _cachedSortedGroups = null;
+                _lastRawGroups = null;
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint("Delete error: $e");
+          if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Moved ${result.length} photos to Trash')),
+              const SnackBar(content: Text('Failed to delete selected items')),
             );
-
-            // Update Provider Locally
-            await context.read<ScanProvider>().removeAssets(result);
-
-            setState(() {
-              _selectedIds.clear();
-              _cachedSortedGroups = null;
-              _lastRawGroups = null;
-            });
           }
         }
-      } catch (e) {
-        debugPrint("Delete error: $e");
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to delete selected items')),
-          );
-        }
       }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 

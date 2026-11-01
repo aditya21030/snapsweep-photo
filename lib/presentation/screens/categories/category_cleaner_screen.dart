@@ -30,6 +30,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   final Set<String> _selectedIds = {};
   CategoryFilter _activeFilter = CategoryFilter.all;
   CategorySort _activeSort = CategorySort.largestFirst;
+  bool _isProcessing = false;
 
   List<AssetEntity>? _cachedDisplayAssets;
   List<AssetEntity>? _lastRawAssets;
@@ -37,67 +38,71 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   CategorySort? _lastSort;
 
   Future<void> _cleanSelected() async {
-    if (_selectedIds.isEmpty) return;
-
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+    if (_isProcessing || _selectedIds.isEmpty) return;
+    _isProcessing = true;
+    try {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
               ),
-              child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 24),
+              const Gap(12),
+              const Expanded(child: Text('Move to Trash?')),
+            ],
+          ),
+          content: Text(
+            '${_selectedIds.length} item(s) will be moved to your device\'s Trash / Recently Deleted folder.\n\nYou can restore them from the Trash within 30 days.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-            const Gap(12),
-            const Expanded(child: Text('Move to Trash?')),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+              label: const Text('Move to Trash'),
+            ),
           ],
         ),
-        content: Text(
-          '${_selectedIds.length} item(s) will be moved to your device\'s Trash / Recently Deleted folder.\n\nYou can restore them from the Trash within 30 days.',
-          style: const TextStyle(fontSize: 14, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-            label: const Text('Move to Trash'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true && mounted) {
-      HapticFeedback.mediumImpact();
-      final provider = context.read<ScanProvider>();
-      final count = await provider.smartClean(specificIds: _selectedIds.toList());
-      if (mounted && count > 0) {
-        setState(() {
-          _selectedIds.clear();
-          _cachedDisplayAssets = null;
-          _lastRawAssets = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Moved $count items from ${widget.title} to Trash')),
-        );
+      if (confirm == true && mounted) {
+        HapticFeedback.mediumImpact();
+        final provider = context.read<ScanProvider>();
+        final count = await provider.smartClean(specificIds: _selectedIds.toList());
+        if (mounted && count > 0) {
+          setState(() {
+            _selectedIds.clear();
+            _cachedDisplayAssets = null;
+            _lastRawAssets = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Moved $count items from ${widget.title} to Trash')),
+          );
 
-        final remaining = widget.title == 'Large Videos'
-            ? provider.largeVideos.length
-            : (widget.title == 'Blurry Photos'
-                ? provider.blurryPhotos.length
-                : (provider.categories[widget.title]?.length ?? 0));
-        if (remaining == 0) {
-          Navigator.pop(context);
+          final remaining = widget.title == 'Large Videos'
+              ? provider.largeVideos.length
+              : (widget.title == 'Blurry Photos'
+                  ? provider.blurryPhotos.length
+                  : (provider.categories[widget.title]?.length ?? 0));
+          if (remaining == 0) {
+            Navigator.pop(context);
+          }
         }
       }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 

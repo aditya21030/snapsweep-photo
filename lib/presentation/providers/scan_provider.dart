@@ -164,6 +164,7 @@ class ScanProvider extends ChangeNotifier {
   int _largeVideosSize = 0;
   int get largeVideosSize => _largeVideosSize;
   String get formattedLargeVideosSize => AppUtils.formatBytes(_largeVideosSize);
+  bool _isScanningVideos = false;
 
   // Persistent Cache: key = asset.id, value = {category, md5, dHash, size, is_blurry}
   Map<String, Map<String, dynamic>> _scanCache = {};
@@ -287,6 +288,12 @@ class ScanProvider extends ChangeNotifier {
         break;
       case ScannerResponse.error:
         _debugLogs += '\n[Isolate Error] ${message['message']}';
+        if (_allBatchesProcessedCompleter != null && !_allBatchesProcessedCompleter!.isCompleted) {
+          _allBatchesProcessedCompleter!.complete();
+        }
+        if (_finalResultsCompleter != null && !_finalResultsCompleter!.isCompleted) {
+          _finalResultsCompleter!.complete();
+        }
         notifyListeners();
         break;
     }
@@ -359,10 +366,12 @@ class ScanProvider extends ChangeNotifier {
   }
 
   Future<void> scanLargeVideos() async {
+    if (_isScanningVideos) return;
+    _isScanningVideos = true;
     try {
       final videos = await _mediaService.fetchVideos(limit: 100);
-      _largeVideos = [];
-      _largeVideosSize = 0;
+      final List<AssetEntity> resolvedVideos = [];
+      int totalVideoSize = 0;
 
       for (int i = 0; i < videos.length; i += 30) {
         final chunk = videos.sublist(i, (i + 30 < videos.length) ? i + 30 : videos.length);
@@ -385,16 +394,20 @@ class ScanProvider extends ChangeNotifier {
           final len = r.$2;
           if (len > 0) {
             _assetSizes[v.id] = len;
-            _largeVideos.add(v);
-            _largeVideosSize += len;
+            resolvedVideos.add(v);
+            totalVideoSize += len;
           }
         }
       }
-      _largeVideos.sort((a, b) => (_assetSizes[b.id] ?? 0).compareTo(_assetSizes[a.id] ?? 0));
+      resolvedVideos.sort((a, b) => (_assetSizes[b.id] ?? 0).compareTo(_assetSizes[a.id] ?? 0));
+      _largeVideos = resolvedVideos;
+      _largeVideosSize = totalVideoSize;
       _recalculateCategorySizes();
       notifyListeners();
     } catch (e) {
       debugPrint('Error scanning videos: $e');
+    } finally {
+      _isScanningVideos = false;
     }
   }
 
@@ -769,18 +782,26 @@ class ScanProvider extends ChangeNotifier {
 
       // 6. Send Items to Isolate and Await Completion
       _setTargetProgress(0.93, status: 'Finalizing grouping...');
-      if (allScanItems.isNotEmpty) {
+      if (allScanItems.isNotEmpty && _isolateSendPort != null) {
         _batchesSent = 1;
         _batchesProcessed = 0;
         _allBatchesProcessedCompleter = Completer<void>();
         _isolateSendPort!.send(ScanBatch(allScanItems));
-        await _allBatchesProcessedCompleter!.future;
+        await _allBatchesProcessedCompleter!.future.timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => debugPrint('[Scanner] Batch processing timed out'),
+        );
       }
 
       // Finalize Result in Isolate
-      _finalResultsCompleter = Completer<void>();
-      _isolateSendPort!.send(ScannerCommand.finalize);
-      await _finalResultsCompleter!.future;
+      if (_isolateSendPort != null) {
+        _finalResultsCompleter = Completer<void>();
+        _isolateSendPort!.send(ScannerCommand.finalize);
+        await _finalResultsCompleter!.future.timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => debugPrint('[Scanner] Finalize timed out'),
+        );
+      }
 
       _recalculateCategorySizes();
 
@@ -793,8 +814,10 @@ class ScanProvider extends ChangeNotifier {
       debugPrint('Scan Error: $e');
       _debugLogs += '\nCritical Error: $e';
     } finally {
-      _isLoading = false;
-      _finishProgress();
+      if (_scanSessionId == mySessionId) {
+        _isLoading = false;
+        _finishProgress();
+      }
     }
   }
 
@@ -836,7 +859,11 @@ class ScanProvider extends ChangeNotifier {
     // 4. Prefer original earlier capture timestamp
     final dateA = a.createDateTime;
     final dateB = b.createDateTime;
-    return dateA.compareTo(dateB);
+    final dateComp = dateA.compareTo(dateB);
+    if (dateComp != 0) return dateComp;
+
+    // 5. Deterministic tie-breaker for reproducible sorting
+    return a.id.compareTo(b.id);
   }
 
   // --- Smart Clean Logic ---
@@ -898,6 +925,7 @@ class ScanProvider extends ChangeNotifier {
   }
 
   Future<void> removeAssets(List<String> ids) async {
+    if (ids.isEmpty) return;
     final Set<String> idsToRemove = ids.toSet();
 
     _allScreenshots.removeWhere((a) => idsToRemove.contains(a.id));
@@ -909,6 +937,7 @@ class ScanProvider extends ChangeNotifier {
         _assetSizes.remove(id);
       }
     }
+    if (_totalSize < 0) _totalSize = 0;
 
     _categories.forEach((key, list) {
       list.removeWhere((a) => idsToRemove.contains(a.id));

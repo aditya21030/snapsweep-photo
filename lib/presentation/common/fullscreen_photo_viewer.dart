@@ -52,7 +52,7 @@ class FullscreenPhotoViewer extends StatefulWidget {
   State<FullscreenPhotoViewer> createState() => _FullscreenPhotoViewerState();
 }
 
-class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
+class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> with WidgetsBindingObserver {
   late bool _selected;
   bool _showOverlay = true;
 
@@ -68,10 +68,20 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selected = widget.isSelected;
 
     if (widget.asset.type == AssetType.video) {
       _initVideoPlayer();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (_videoController != null && _videoController!.value.isPlaying) {
+        _videoController!.pause();
+      }
     }
   }
 
@@ -153,6 +163,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _videoController?.removeListener(_videoListener);
     _videoController?.dispose();
     super.dispose();

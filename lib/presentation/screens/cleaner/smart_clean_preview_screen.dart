@@ -18,6 +18,7 @@ class SmartCleanPreviewScreen extends StatefulWidget {
 
 class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
   final Set<String> _selectedIds = {};
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -33,53 +34,57 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
   }
 
   Future<void> _cleanSelected() async {
-    if (_selectedIds.isEmpty) return;
-
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+    if (_isProcessing || _selectedIds.isEmpty) return;
+    _isProcessing = true;
+    try {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
               ),
-              child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
+              const Gap(12),
+              const Expanded(child: Text('Move Copies to Trash?')),
+            ],
+          ),
+          content: Text(
+            '${_selectedIds.length} exact copy photo(s) will be moved to your device\'s Trash / Recently Deleted folder.\n\nThe original photo will be safely kept. You can restore deleted copies within 30 days.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
             ),
-            const Gap(12),
-            const Expanded(child: Text('Move Copies to Trash?')),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+              label: const Text('Move to Trash'),
+            ),
           ],
         ),
-        content: Text(
-          '${_selectedIds.length} exact copy photo(s) will be moved to your device\'s Trash / Recently Deleted folder.\n\nThe original photo will be safely kept. You can restore deleted copies within 30 days.',
-          style: const TextStyle(fontSize: 14, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-            label: const Text('Move to Trash'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    if (confirm == true && mounted) {
-      HapticFeedback.mediumImpact();
-      final count = await context.read<ScanProvider>().smartClean(specificIds: _selectedIds.toList());
-      if (mounted && count > 0) {
-        Navigator.pop(context); // Return to Cleaner Tab
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Moved $count duplicate copies to Trash!')),
-        );
+      if (confirm == true && mounted) {
+        HapticFeedback.mediumImpact();
+        final count = await context.read<ScanProvider>().smartClean(specificIds: _selectedIds.toList());
+        if (mounted && count > 0) {
+          Navigator.pop(context); // Return to Cleaner Tab
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Moved $count duplicate copies to Trash!')),
+          );
+        }
       }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 

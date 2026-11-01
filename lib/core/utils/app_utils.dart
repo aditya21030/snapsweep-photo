@@ -9,6 +9,7 @@ class AppUtils {
   }
 
   static String formatDuration(Duration duration) {
+    if (duration.isNegative) return '00:00';
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
     final seconds = duration.inSeconds % 60;
