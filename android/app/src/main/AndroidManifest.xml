@@ -10,8 +10,8 @@
     <uses-permission android:name="com.android.vending.BILLING" />
 
     <application
-        android:label="snapsweep"
-        android:name="android.app.Application"
+        android:label="SnapSweep"
+        android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
         <activity

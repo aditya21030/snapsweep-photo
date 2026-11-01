@@ -41,6 +41,8 @@ android {
             keyPassword = keystoreProperties["keyPassword"] as String
             storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
             storePassword = keystoreProperties["storePassword"] as String
+            isV1SigningEnabled = true
+            isV2SigningEnabled = true
         }
         getByName("debug") {
             isV1SigningEnabled = true
