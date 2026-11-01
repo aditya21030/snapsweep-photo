@@ -612,7 +612,7 @@ class ScanProvider extends ChangeNotifier {
         if (a.type != AssetType.image) return false;
         final path = '${a.title ?? ''} ${a.relativePath ?? ''} ${_assetAlbumMap[a.id] ?? ''}'.toLowerCase();
         return path.contains('dcim') || path.contains('camera') || path.contains('img_');
-      }).take(60).toList());
+      }).take(180).toList());
 
       // 5. TARGETED BATCH RESOLUTION
       _setTargetProgress(0.48, status: 'Analyzing duplicate file sizes...');
@@ -800,18 +800,41 @@ class ScanProvider extends ChangeNotifier {
   String get formattedDuplicateSize => AppUtils.formatBytes(_duplicateSize);
   String get formattedSimilarSize => AppUtils.formatBytes(_similarSize);
 
+  int _getFolderAuthorityScore(AssetEntity asset) {
+    final path = '${asset.title ?? ''} ${asset.relativePath ?? ''} ${_assetAlbumMap[asset.id] ?? ''}'.toLowerCase();
+    if (path.contains('whatsapp') || path.contains('telegram') || path.contains('download')) {
+      return 0; // Low authority - forwarded/cached copies
+    }
+    if (path.contains('dcim') || path.contains('camera')) {
+      return 3; // Highest authority - original camera capture
+    }
+    if (path.contains('screenshot') || path.contains('pictures')) {
+      return 2; // Medium-high authority
+    }
+    return 1; // Default
+  }
+
   int _compareAssetsForKeeping(AssetEntity a, AssetEntity b) {
+    // 1. Prefer original camera photos over forwarded/downloaded copies
+    final authorityA = _getFolderAuthorityScore(a);
+    final authorityB = _getFolderAuthorityScore(b);
+    final authComp = authorityB.compareTo(authorityA);
+    if (authComp != 0) return authComp;
+
+    // 2. Prefer higher resolution
     final resolutionA = a.width * a.height;
     final resolutionB = b.width * b.height;
     final resolutionComparison = resolutionB.compareTo(resolutionA);
     if (resolutionComparison != 0) return resolutionComparison;
 
+    // 3. Prefer larger file size (uncompressed)
     final sizeComparison = (_assetSizes[b.id] ?? 0).compareTo(_assetSizes[a.id] ?? 0);
     if (sizeComparison != 0) return sizeComparison;
 
+    // 4. Prefer original earlier capture timestamp
     final dateA = a.createDateTime;
     final dateB = b.createDateTime;
-    return dateB.compareTo(dateA);
+    return dateA.compareTo(dateB);
   }
 
   // --- Smart Clean Logic ---

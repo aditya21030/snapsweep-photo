@@ -152,17 +152,29 @@ void scannerIsolateEntry(SendPort sendPort) {
        return (null, false);
     }
 
-    // 1. dHash (9x8 downscaled)
-    final resized = img.copyResize(image, width: 9, height: 8);
-    String hash = '';
+    // 1. Dual-Axis dHash (9x9 downscaled for horizontal and vertical gradients)
+    final resized = img.copyResize(image, width: 9, height: 9);
+    final StringBuffer hashBuffer = StringBuffer();
 
+    // Horizontal gradients (8x8 = 64 bits)
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
         final left = resized.getPixel(x, y).luminance;
         final right = resized.getPixel(x + 1, y).luminance;
-        hash += (left > right) ? '1' : '0';
+        hashBuffer.write((left > right) ? '1' : '0');
       }
     }
+
+    // Vertical gradients (8x8 = 64 bits)
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+        final top = resized.getPixel(x, y).luminance;
+        final bottom = resized.getPixel(x, y + 1).luminance;
+        hashBuffer.write((top > bottom) ? '1' : '0');
+      }
+    }
+
+    final hash = hashBuffer.toString();
 
     // 2. Laplacian Variance for Blurry / Out-of-Focus Detection
     bool isBlurry = false;
@@ -184,6 +196,8 @@ bool _checkIsBlurry(img.Image image) {
 
   final gray = (image.numChannels == 1) ? image : img.grayscale(image);
 
+  num minVal = 255;
+  num maxVal = 0;
   double sum = 0.0;
   double sumSq = 0.0;
   int count = 0;
@@ -191,6 +205,9 @@ bool _checkIsBlurry(img.Image image) {
   for (int y = 1; y < h - 1; y++) {
     for (int x = 1; x < w - 1; x++) {
       final center = gray.getPixel(x, y).getChannel(img.Channel.red);
+      if (center < minVal) minVal = center;
+      if (center > maxVal) maxVal = center;
+
       final top = gray.getPixel(x, y - 1).getChannel(img.Channel.red);
       final bottom = gray.getPixel(x, y + 1).getChannel(img.Channel.red);
       final left = gray.getPixel(x - 1, y).getChannel(img.Channel.red);
@@ -204,6 +221,13 @@ bool _checkIsBlurry(img.Image image) {
   }
 
   if (count == 0) return false;
+
+  // Dynamic Range Guard: if contrast is too low (e.g. plain blue sky, dark night photo, plain white wall),
+  // it is not an out-of-focus photo, it is a uniform or minimalist scene.
+  if ((maxVal - minVal) < 35) {
+    return false;
+  }
+
   final mean = sum / count;
   final variance = (sumSq / count) - (mean * mean);
   return variance < 80.0; // Sharpness threshold for low variance / blurry shots
@@ -266,7 +290,8 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
         if (processedInCluster.contains(itemB.id)) continue;
 
         int distance = _hammingDistance(itemA.dHash!, itemB.dHash!);
-        if (distance <= 8) {
+        // For 128-bit dual hash, distance <= 16 corresponds to >= 87.5% visual similarity
+        if (distance <= 16) {
           currentSimilar.add(itemB.id);
           processedInCluster.add(itemB.id);
         }
