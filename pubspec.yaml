@@ -53,6 +53,7 @@ dependencies:
   google_mlkit_image_labeling: ^0.13.0
   share_plus: ^10.0.0
   google_mobile_ads: ^7.0.0
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:

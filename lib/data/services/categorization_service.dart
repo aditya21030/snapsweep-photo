@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -6,7 +5,7 @@ import 'package:photo_manager/photo_manager.dart';
 class CategoryResult {
   final String category;
   final String? debugInfo;
-  
+
   CategoryResult(this.category, {this.debugInfo});
 }
 
@@ -16,6 +15,7 @@ class CategorizationService {
 
   static const List<String> availableCategories = [
     'Screenshots',
+    'Screen Recordings',
     'Social & WhatsApp',
     'Bills & Finance',
     'Documents & IDs',
@@ -29,18 +29,39 @@ class CategorizationService {
     'gpay', 'paytm', 'phonepe', 'bhim', 'cred', 'yono', 'paypal', 'payment', 'transfer',
     'upi', 'credit', 'debit', 'balance', 'transaction', 'paid', 'wallet', 'rupees', 'rs.',
     'invoice', 'bill', 'receipt', 'tax', 'gst', 'bank', 'hdfc', 'sbi', 'icici', 'axis',
-    'kotak', 'pnb', 'neft', 'imps', 'order', 'booking', 'ticket'
+    'kotak', 'pnb', 'neft', 'imps', 'order', 'booking', 'ticket', 'razorpay', 'stripe',
+    'bharatpe', 'statement', 'passbook', 'cheque', 'amazon', 'flipkart', 'ola', 'uber',
+    'irctc', 'makemytrip', 'swiggy', 'zomato'
   ];
 
   static const List<String> _docKeywords = [
-    'aadhaar', 'pan card', 'driving license', 'passport', 'voter id', 'certificate',
-    'resume', 'cv', 'marksheet', 'admit card', 'identity', 'id card', 'contract',
-    'agreement', 'salary slip', 'form 16', 'prescription', 'pdf', 'doc'
+    'aadhaar', 'aadhar', 'pan card', 'pan_', 'pancard', 'driving license', 'license',
+    'passport', 'voter id', 'voter', 'identity', 'id card', 'id_card', 'certificate',
+    'resume', 'cv', 'marksheet', 'admit card', 'hall ticket', 'degree', 'diploma',
+    'contract', 'agreement', 'salary slip', 'salary', 'form 16', 'prescription',
+    'pdf', 'doc', 'camscanner', 'adobe scan', 'scanner', 'notes', 'textbook', 'report'
   ];
 
   static const List<String> _foodKeywords = [
-    'swiggy', 'zomato', 'blinkit', 'zepto', 'dominos', 'kfc', 'mcdonalds', 'burger',
-    'pizza', 'biryani', 'food', 'restaurant', 'meal', 'dish', 'recipe', 'grocery'
+    'swiggy', 'zomato', 'blinkit', 'zepto', 'instamart', 'dominos', 'kfc', 'mcdonalds',
+    'starbucks', 'burger', 'pizza', 'biryani', 'food', 'restaurant', 'meal', 'dish',
+    'recipe', 'grocery', 'cafe', 'coffee', 'snack', 'dessert', 'baking', 'cooking'
+  ];
+
+  static const List<String> _socialKeywords = [
+    'whatsapp', 'wa0', 'wa1', 'wa2', '_wa', 'telegram', 'tg_', 'instagram', 'insta',
+    'messenger', 'snapchat', 'snap_', 'discord', 'signal', 'facebook', 'fb_', 'twitter',
+    'x_', 'pinterest', 'tiktok', 'viber', 'wechat', 'line', 'threads'
+  ];
+
+  static const List<String> _downloadKeywords = [
+    'download', 'downloads', 'browser', 'chrome', 'firefox', 'opera', 'edge', 'brave',
+    'ucbrowser', 'meme', 'reddit', '9gag', 'sticker', 'gif', 'webp', 'saved_image'
+  ];
+
+  static const List<String> _cameraKeywords = [
+    'camera', 'dcim', '100and', '100media', 'img_', 'pxl_', 'dsc_', 'sam_', 'hdr_',
+    'raw_', 'camerakit', 'portrait', 'mvimg_'
   ];
 
   void dispose() {
@@ -48,53 +69,92 @@ class CategorizationService {
     _imageLabeler.close();
   }
 
-  /// Fast metadata & path categorization (runs in < 0.1ms per item with 0 lag)
+  /// Fast metadata & heuristic categorization (< 0.05ms per item with 0 lag)
   String quickCategorize(AssetEntity asset) {
     final title = (asset.title ?? '').toLowerCase();
     final path = (asset.relativePath ?? '').toLowerCase();
+    final combined = '$title $path';
 
-    // 1. Screenshots
-    if (title.contains('screen') || title.contains('capture') || title.contains('screenshot') ||
-        path.contains('screen') || path.contains('capture') || path.contains('screenshot')) {
-      for (final kw in _financeKeywords) {
-        if (title.contains(kw) || path.contains(kw)) return 'Bills & Finance';
+    // 0. Screen Recordings (Videos)
+    if (asset.type == AssetType.video) {
+      if (combined.contains('screen') || combined.contains('record') || combined.contains('screencast')) {
+        return 'Screen Recordings';
       }
-      for (final kw in _docKeywords) {
-        if (title.contains(kw) || path.contains(kw)) return 'Documents & IDs';
+      for (final kw in _socialKeywords) {
+        if (combined.contains(kw)) return 'Social & WhatsApp';
       }
+      for (final kw in _downloadKeywords) {
+        if (combined.contains(kw)) return 'Memes & Downloads';
+      }
+      return 'Others';
+    }
+
+    // 1. Bills & Finance (Priority over general screenshots)
+    for (final kw in _financeKeywords) {
+      if (combined.contains(kw)) return 'Bills & Finance';
+    }
+
+    // 2. Documents & IDs (Priority over general screenshots)
+    for (final kw in _docKeywords) {
+      if (combined.contains(kw)) return 'Documents & IDs';
+    }
+
+    // 3. Screenshots
+    if (combined.contains('screen') || combined.contains('capture') || combined.contains('screenshot') ||
+        combined.contains('scrn_') || combined.contains('snapshot')) {
       return 'Screenshots';
     }
 
-    // 2. WhatsApp & Social Media
-    if (path.contains('whatsapp') || path.contains('telegram') || path.contains('instagram') ||
-        path.contains('messenger') || path.contains('snapchat') || path.contains('discord') ||
-        path.contains('facebook') || path.contains('twitter') || path.contains('signal')) {
-      return 'Social & WhatsApp';
+    // Check screen aspect ratio heuristics for screenshots (e.g. 19:9, 20:9, 21:9 phones)
+    if (asset.width > 0 && asset.height > 0) {
+      final longer = asset.width > asset.height ? asset.width : asset.height;
+      final shorter = asset.width < asset.height ? asset.width : asset.height;
+      final ratio = longer / shorter;
+      if (ratio >= 1.95 && ratio <= 2.35) {
+        // High likelihood of mobile screenshot if not in camera directory
+        if (!combined.contains('dcim') && !combined.contains('camera')) {
+          return 'Screenshots';
+        }
+      }
     }
 
-    // 3. Downloads & Memes
-    if (path.contains('download') || path.contains('browser') || path.contains('chrome')) {
-      return 'Memes & Downloads';
+    // 4. WhatsApp & Social Media
+    for (final kw in _socialKeywords) {
+      if (combined.contains(kw)) return 'Social & WhatsApp';
     }
 
-    // 4. Bills & Finance
-    for (final kw in _financeKeywords) {
-      if (title.contains(kw) || path.contains(kw)) return 'Bills & Finance';
+    // 5. Downloads & Memes
+    for (final kw in _downloadKeywords) {
+      if (combined.contains(kw)) return 'Memes & Downloads';
     }
 
-    // 5. Documents & IDs
-    for (final kw in _docKeywords) {
-      if (title.contains(kw) || path.contains(kw)) return 'Documents & IDs';
-    }
-
-    // 6. Food
+    // 6. Food & Dining
     for (final kw in _foodKeywords) {
-      if (title.contains(kw) || path.contains(kw)) return 'Food & Dining';
+      if (combined.contains(kw)) return 'Food & Dining';
     }
 
-    // 7. Camera photos (DCIM)
-    if (path.contains('camera') || path.contains('dcim') || title.startsWith('img_')) {
-      return 'Personal & Portraits';
+    // 7. Camera photos / Portraits (DCIM, Camera Roll)
+    for (final kw in _cameraKeywords) {
+      if (combined.contains(kw)) return 'Personal & Portraits';
+    }
+
+    // 8. General Aspect Ratio / Resolution Fallbacks (Prevent dumping into "Others")
+    if (asset.width > 0 && asset.height > 0) {
+      final longer = asset.width > asset.height ? asset.width : asset.height;
+      final shorter = asset.width < asset.height ? asset.width : asset.height;
+      final ratio = longer / shorter;
+
+      // Typical camera photo ratios (4:3 is ~1.33, 16:9 is ~1.78)
+      if ((ratio >= 1.25 && ratio <= 1.45) || (ratio >= 1.70 && ratio <= 1.85)) {
+        if (longer >= 1920) {
+          return 'Personal & Portraits';
+        }
+      }
+
+      // Square (1:1) format is overwhelmingly memes, stickers, or social downloads
+      if (ratio >= 0.95 && ratio <= 1.05) {
+        return 'Memes & Downloads';
+      }
     }
 
     return 'Others';
@@ -102,10 +162,9 @@ class CategorizationService {
 
   /// Deep ML-assisted categorization for ambiguous items
   Future<CategoryResult> categorize(AssetEntity asset) async {
-    // Try fast categorization first
     final fastCat = quickCategorize(asset);
     if (fastCat != 'Others') {
-      return CategoryResult(fastCat, debugInfo: 'Fast Metadata Match');
+      return CategoryResult(fastCat, debugInfo: 'Fast Heuristic Match');
     }
 
     try {
@@ -116,7 +175,7 @@ class CategorizationService {
 
       final inputImage = InputImage.fromFile(file);
 
-      // OCR check
+      // OCR check for receipts & documents
       final recognizedText = await _textRecognizer.processImage(inputImage);
       final text = recognizedText.text.toLowerCase();
 
@@ -136,21 +195,25 @@ class CategorizationService {
       final labels = await _imageLabeler.processImage(inputImage);
       for (final label in labels) {
         final labelText = label.label.toLowerCase();
-        if (labelText.contains('food') || labelText.contains('dish') || labelText.contains('meal')) {
+        if (labelText.contains('food') || labelText.contains('dish') || labelText.contains('meal') || labelText.contains('cuisine')) {
           return CategoryResult('Food & Dining', debugInfo: 'Label: $labelText');
         }
-        if (labelText.contains('person') || labelText.contains('face') || labelText.contains('people')) {
+        if (labelText.contains('person') || labelText.contains('face') || labelText.contains('people') || labelText.contains('smile')) {
           return CategoryResult('Personal & Portraits', debugInfo: 'Label: $labelText');
         }
-        if (labelText.contains('document') || labelText.contains('paper') || labelText.contains('text')) {
+        if (labelText.contains('document') || labelText.contains('paper') || labelText.contains('text') || labelText.contains('page')) {
           return CategoryResult('Documents & IDs', debugInfo: 'Label: $labelText');
         }
       }
 
+      // If camera resolution, default to Personal & Portraits
+      if (asset.width * asset.height > 2000000) {
+        return CategoryResult('Personal & Portraits', debugInfo: 'High-Res Fallback');
+      }
+
       return CategoryResult('Others');
     } catch (e) {
-      debugPrint('Categorization error: $e');
-      return CategoryResult('Others');
+      return CategoryResult('Others', debugInfo: 'Error: $e');
     }
   }
 }

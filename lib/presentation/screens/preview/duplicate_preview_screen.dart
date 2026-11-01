@@ -22,15 +22,14 @@ class DuplicatePreviewScreen extends StatefulWidget {
 class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   // Set of selected asset IDs to delete
   final Set<String> _selectedIds = {};
-  
+
   @override
   void initState() {
     super.initState();
-    // Auto-select logic
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ScanProvider>();
       final groups = widget.isSimilar ? provider.similarGroups : provider.duplicateGroups;
-      
+
       for (var group in groups) {
         if (!widget.isSimilar && group.isNotEmpty) {
           // Select all except the first one (Keep the best one)
@@ -42,11 +41,10 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
       setState(() {});
     });
   }
-  
+
   Future<void> _deleteSelected() async {
     if (_selectedIds.isEmpty) return;
-    
-    // Show reassurance dialog
+
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -82,22 +80,22 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         ],
       ),
     );
-    
+
     if (confirm == true) {
       HapticFeedback.mediumImpact();
       List<String> idsToDelete = _selectedIds.toList();
       try {
         final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
-        
+
         if (mounted) {
           if (result.isNotEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Moved ${result.length} photos to Trash')),
             );
-            
-            // Update Provider Locally (Instant UX)
+
+            // Update Provider Locally
             await context.read<ScanProvider>().removeAssets(result);
-            
+
             setState(() {
               _selectedIds.clear();
             });
@@ -116,19 +114,56 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
 
   SortOption _sortOption = SortOption.size;
 
-  void _toggleSelectAll(List<List<AssetEntity>> groups) {
-    if (widget.isSimilar) return;
+  void _selectCopies(List<List<AssetEntity>> groups) {
     HapticFeedback.lightImpact();
     setState(() {
-      if (_selectedIds.isNotEmpty) {
-        _selectedIds.clear();
-      } else {
-        for (var group in groups) {
-          if (group.isNotEmpty) {
-            for (int i = 1; i < group.length; i++) {
-              _selectedIds.add(group[i].id);
-            }
+      _selectedIds.clear();
+      for (var group in groups) {
+        if (group.isNotEmpty) {
+          for (int i = 1; i < group.length; i++) {
+            _selectedIds.add(group[i].id);
           }
+        }
+      }
+    });
+  }
+
+  void _selectAll(List<List<AssetEntity>> groups) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _selectedIds.clear();
+      for (var group in groups) {
+        for (var asset in group) {
+          _selectedIds.add(asset.id);
+        }
+      }
+    });
+  }
+
+  void _deselectAll() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleGroupSelection(List<AssetEntity> group, {bool keepBest = false}) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      final startIndex = keepBest ? 1 : 0;
+      final groupCandidates = group.sublist(startIndex);
+      final allSelected = groupCandidates.every((a) => _selectedIds.contains(a.id));
+
+      if (allSelected) {
+        for (var a in group) {
+          _selectedIds.remove(a.id);
+        }
+      } else {
+        if (keepBest && group.isNotEmpty) {
+          _selectedIds.remove(group[0].id);
+        }
+        for (var a in groupCandidates) {
+          _selectedIds.add(a.id);
         }
       }
     });
@@ -185,16 +220,17 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
       builder: (context, provider, child) {
         final rawGroups = widget.isSimilar ? provider.similarGroups : provider.duplicateGroups;
         final groups = _sortGroups(rawGroups, provider.assetSizes);
-        
         final title = widget.isSimilar ? 'Similar Photos' : 'Exact Duplicates';
-        
+
+        final totalPhotosInGroups = groups.fold<int>(0, (sum, g) => sum + g.length);
+
         return Scaffold(
           appBar: AppBar(
             title: Column(
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
                 Text(
-                  '${_selectedIds.length} selected for clean', 
+                  '${_selectedIds.length} of $totalPhotosInGroups selected',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
                 ),
               ],
@@ -202,7 +238,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
           ),
           body: Column(
             children: [
-              // --- Filter / Action Bar ---
+              // Filter / Action Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
@@ -219,8 +255,8 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                         underline: const SizedBox(),
                         icon: const Icon(Icons.sort_rounded, size: 18),
                         items: const [
-                          DropdownMenuItem(value: SortOption.size, child: Text("Sort by Size")),
-                          DropdownMenuItem(value: SortOption.date, child: Text("Sort by Date")),
+                          DropdownMenuItem(value: SortOption.size, child: Text('Sort by Size', style: TextStyle(fontSize: 13))),
+                          DropdownMenuItem(value: SortOption.date, child: Text('Sort by Date', style: TextStyle(fontSize: 13))),
                         ],
                         onChanged: (val) {
                           if (val != null) setState(() => _sortOption = val);
@@ -228,12 +264,22 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                       ),
                     ),
                     const Spacer(),
-                    if (!widget.isSimilar)
+                    if (_selectedIds.isNotEmpty)
                       TextButton.icon(
-                        icon: Icon(_selectedIds.isEmpty ? Icons.check_circle_outline_rounded : Icons.close_rounded, size: 18),
-                        label: Text(_selectedIds.isEmpty ? "Select copies" : "Deselect all"),
-                        onPressed: () => _toggleSelectAll(groups),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: const Text('Deselect all'),
+                        onPressed: _deselectAll,
+                      )
+                    else ...[
+                      TextButton(
+                        onPressed: () => _selectCopies(groups),
+                        child: const Text('Select copies'),
                       ),
+                      TextButton(
+                        onPressed: () => _selectAll(groups),
+                        child: const Text('Select all'),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -246,206 +292,225 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary),
-                      const Gap(10),
-                      const Expanded(
+                      Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary),
+                      Gap(10),
+                      Expanded(
                         child: Text(
-                          'Tap any photo to zoom and inspect smiles/sharpness. Similar photos are never deleted automatically.',
+                          'Tap any photo to zoom and inspect smiles / sharpness. Use "Select copies" to keep the best shot in each group.',
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
                     ],
                   ),
                 ),
-              
-              // --- Content ---
-              Expanded(
-                child: groups.isEmpty 
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle_rounded, size: 64, color: Colors.green.withValues(alpha: 0.6)),
-                          const Gap(16),
-                          Text(
-                            "No ${widget.isSimilar ? 'similar photos' : 'duplicates'} found!",
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          const Gap(6),
-                          const Text("Your gallery in this area is clean.", style: TextStyle(color: Colors.grey)),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 100),
-                      itemCount: groups.length,
-                      itemBuilder: (context, index) {
-                        final group = groups[index];
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    'Group ${index + 1}',
-                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const Gap(8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      '${group.length} items',
-                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            GridView.builder(
-                              physics: const NeverScrollableScrollPhysics(),
-                              shrinkWrap: true,
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.85,
-                              ),
-                              itemCount: group.length,
-                              itemBuilder: (context, imgIndex) {
-                                final asset = group[imgIndex];
-                                final isSelected = _selectedIds.contains(asset.id);
-                                final isBest = !isSelected && imgIndex == 0;
-                                
-                                return GestureDetector(
-                                  onTap: () => _openInspector(asset),
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(14),
-                                          child: AssetEntityImage(
-                                            asset,
-                                            isOriginal: false,
-                                            thumbnailSize: const ThumbnailSize.square(250),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
 
-                                      // Selection Border / Overlay
-                                      if (isSelected)
+              // Content
+              Expanded(
+                child: groups.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_rounded, size: 64, color: Colors.green.withValues(alpha: 0.6)),
+                            const Gap(16),
+                            Text(
+                              "No ${widget.isSimilar ? 'similar photos' : 'duplicates'} found!",
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const Gap(6),
+                            const Text('Your gallery in this area is clean.', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 100),
+                        itemCount: groups.length,
+                        itemBuilder: (context, index) {
+                          final group = groups[index];
+                          final groupCopiesSelected = group.length > 1 &&
+                              group.sublist(1).every((a) => _selectedIds.contains(a.id));
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'Group ${index + 1}',
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const Gap(8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${group.length} items',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      onPressed: () => _toggleGroupSelection(group, keepBest: true),
+                                      child: Text(
+                                        groupCopiesSelected ? 'Deselect group' : 'Select copies',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                shrinkWrap: true,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 0.85,
+                                ),
+                                itemCount: group.length,
+                                itemBuilder: (context, imgIndex) {
+                                  final asset = group[imgIndex];
+                                  final isSelected = _selectedIds.contains(asset.id);
+                                  final isBest = !isSelected && imgIndex == 0;
+
+                                  return GestureDetector(
+                                    onTap: () => _openInspector(asset),
+                                    child: Stack(
+                                      children: [
                                         Positioned.fill(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: AppColors.error.withValues(alpha: 0.3),
-                                              borderRadius: BorderRadius.circular(14),
-                                              border: Border.all(color: AppColors.error, width: 3),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(14),
+                                            child: AssetEntityImage(
+                                              asset,
+                                              isOriginal: false,
+                                              thumbnailSize: const ThumbnailSize.square(250),
+                                              fit: BoxFit.cover,
                                             ),
                                           ),
                                         ),
 
-                                      // Suggested Keep Badge
-                                      if (isBest)
+                                        // Selection Border / Overlay
+                                        if (isSelected)
+                                          Positioned.fill(
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: AppColors.error.withValues(alpha: 0.3),
+                                                borderRadius: BorderRadius.circular(14),
+                                                border: Border.all(color: AppColors.error, width: 3),
+                                              ),
+                                            ),
+                                          ),
+
+                                        // Suggested Keep Badge
+                                        if (isBest)
+                                          Positioned(
+                                            top: 6,
+                                            left: 6,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.75),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.star_rounded, color: Colors.amber, size: 12),
+                                                  Gap(3),
+                                                  Text(
+                                                    'Keep',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+
+                                        // Top-Right Checkbox Button
                                         Positioned(
                                           top: 6,
-                                          left: 6,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 3,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.75),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.star_rounded, color: Colors.amber, size: 12),
-                                                Gap(3),
-                                                Text(
-                                                  'Keep',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
+                                          right: 6,
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: () {
+                                              HapticFeedback.selectionClick();
+                                              setState(() {
+                                                if (isSelected) {
+                                                  _selectedIds.remove(asset.id);
+                                                } else {
+                                                  _selectedIds.add(asset.id);
+                                                }
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? AppColors.error
+                                                    : Colors.black.withValues(alpha: 0.5),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.white, width: 1.5),
+                                              ),
+                                              child: Icon(
+                                                isSelected ? Icons.check_rounded : Icons.circle,
+                                                color: isSelected ? Colors.white : Colors.transparent,
+                                                size: 14,
+                                              ),
                                             ),
                                           ),
                                         ),
 
-                                      // Top-Right Checkbox Button
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () {
-                                            HapticFeedback.selectionClick();
-                                            setState(() {
-                                              if (isSelected) {
-                                                _selectedIds.remove(asset.id);
-                                              } else {
-                                                _selectedIds.add(asset.id);
-                                              }
-                                            });
-                                          },
+                                        // Size label bottom right
+                                        Positioned(
+                                          bottom: 6,
+                                          right: 6,
                                           child: Container(
-                                            padding: const EdgeInsets.all(4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: isSelected 
-                                                  ? AppColors.error 
-                                                  : Colors.black.withValues(alpha: 0.5),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 1.5),
+                                              color: Colors.black.withValues(alpha: 0.65),
+                                              borderRadius: BorderRadius.circular(6),
                                             ),
-                                            child: Icon(
-                                              isSelected ? Icons.check_rounded : Icons.circle,
-                                              color: isSelected ? Colors.white : Colors.transparent,
-                                              size: 14,
+                                            child: Text(
+                                              provider.getFormattedAssetSize(asset.id),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-
-                                      // Size label bottom right
-                                      Positioned(
-                                        bottom: 6,
-                                        right: 6,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.65),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            provider.getFormattedAssetSize(asset.id), 
-                                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                            const Gap(16),
-                          ],
-                        );
-                      },
-                    ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Gap(16),
+                            ],
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -473,9 +538,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                 label: Text(
                   _selectedIds.isEmpty
                       ? 'Select Photos to Clean'
-                      : 'Move ${_selectedIds.length} to Trash (${AppUtils.formatBytes(
-                          _selectedIds.fold(0, (sum, id) => sum + (provider.assetSizes[id] ?? 0))
-                        )})',
+                      : 'Move ${_selectedIds.length} to Trash (${AppUtils.formatBytes(_selectedIds.fold(0, (sum, id) => sum + (provider.assetSizes[id] ?? 0)))})',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),

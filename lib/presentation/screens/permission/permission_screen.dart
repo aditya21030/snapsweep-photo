@@ -91,7 +91,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                     Icon(Icons.shield_outlined, color: Colors.green, size: 16),
                     Gap(8),
                     Text(
-                      "100% On-Device • Photos Never Uploaded",
+                      "100% On-Device | Photos Never Uploaded",
                       style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],

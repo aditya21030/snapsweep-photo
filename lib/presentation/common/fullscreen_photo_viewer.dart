@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
+import 'package:video_player/video_player.dart';
 import 'package:gap/gap.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/app_utils.dart';
 
 class FullscreenPhotoViewer extends StatefulWidget {
   final AssetEntity asset;
@@ -53,10 +56,97 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
   late bool _selected;
   bool _showOverlay = true;
 
+  // Video playback
+  VideoPlayerController? _videoController;
+  bool _isVideoInitialized = false;
+  bool _isPlaying = false;
+  bool _isMuted = false;
+  Duration _videoPosition = Duration.zero;
+  Duration _videoDuration = Duration.zero;
+
   @override
   void initState() {
     super.initState();
     _selected = widget.isSelected;
+
+    if (widget.asset.type == AssetType.video) {
+      _initVideoPlayer();
+    }
+  }
+
+  Future<void> _initVideoPlayer() async {
+    try {
+      final File? file = await widget.asset.file;
+      if (file == null || !mounted) return;
+
+      final controller = VideoPlayerController.file(file);
+      await controller.initialize();
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      controller.addListener(_videoListener);
+      setState(() {
+        _videoController = controller;
+        _isVideoInitialized = true;
+        _videoDuration = controller.value.duration;
+        _isPlaying = true;
+      });
+      await controller.play();
+    } catch (e) {
+      debugPrint('[Video Player Error] $e');
+    }
+  }
+
+  void _videoListener() {
+    if (!mounted || _videoController == null) return;
+    final value = _videoController!.value;
+    setState(() {
+      _videoPosition = value.position;
+      _videoDuration = value.duration;
+      _isPlaying = value.isPlaying;
+    });
+  }
+
+  void _togglePlayPause() {
+    if (_videoController == null || !_isVideoInitialized) return;
+    HapticFeedback.selectionClick();
+    if (_videoController!.value.isPlaying) {
+      _videoController!.pause();
+    } else {
+      if (_videoPosition >= _videoDuration) {
+        _videoController!.seekTo(Duration.zero);
+      }
+      _videoController!.play();
+    }
+  }
+
+  void _toggleMute() {
+    if (_videoController == null) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _isMuted = !_isMuted;
+      _videoController!.setVolume(_isMuted ? 0.0 : 1.0);
+    });
+  }
+
+  void _seekBy(int seconds) {
+    if (_videoController == null || !_isVideoInitialized) return;
+    HapticFeedback.selectionClick();
+    final newPos = _videoPosition + Duration(seconds: seconds);
+    final clamped = newPos < Duration.zero
+        ? Duration.zero
+        : (newPos > _videoDuration ? _videoDuration : newPos);
+    _videoController!.seekTo(clamped);
+  }
+
+  @override
+  void dispose() {
+    _videoController?.removeListener(_videoListener);
+    _videoController?.dispose();
+    super.dispose();
   }
 
   void _toggleSelection() {
@@ -70,53 +160,26 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
   @override
   Widget build(BuildContext context) {
     final asset = widget.asset;
+    final isVideo = asset.type == AssetType.video;
     final dateStr = asset.createDateTime.toLocal().toString().split('.').first;
     final resolutionStr = '${asset.width} × ${asset.height}';
+    final mediaTypeBadge = isVideo ? 'Video' : 'Photo';
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Pinch-to-zoom interactive viewer
+          // Media Viewer Body
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
               setState(() {
                 _showOverlay = !_showOverlay;
               });
             },
             child: Center(
-              child: InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 5.0,
-                child: AssetEntityImage(
-                  asset,
-                  isOriginal: true,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    // While full-res loads, show thumbnail placeholder
-                    return Stack(
-                      fit: StackFit.expand,
-                      alignment: Alignment.center,
-                      children: [
-                        AssetEntityImage(
-                          asset,
-                          isOriginal: false,
-                          fit: BoxFit.contain,
-                          thumbnailSize: const ThumbnailSize.square(400),
-                        ),
-                        const Center(
-                          child: CircularProgressIndicator(
-                            color: Colors.white70,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
+              child: isVideo ? _buildVideoContent() : _buildImageContent(),
             ),
           ),
 
@@ -138,7 +201,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.75),
+                      Colors.black.withValues(alpha: 0.8),
                       Colors.transparent,
                     ],
                   ),
@@ -160,7 +223,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            asset.title ?? 'Photo Preview',
+                            asset.title ?? (isVideo ? 'Video Preview' : 'Photo Preview'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -170,7 +233,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
                             ),
                           ),
                           Text(
-                            '$resolutionStr • $dateStr',
+                            '$mediaTypeBadge | $resolutionStr | $dateStr',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -184,7 +247,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
               ),
             ),
 
-          // Bottom Action Bar Overlay
+          // Bottom Action & Video Controls Overlay
           if (_showOverlay)
             Positioned(
               bottom: 0,
@@ -192,58 +255,148 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
               right: 0,
               child: Container(
                 padding: EdgeInsets.fromLTRB(
-                  24,
                   20,
-                  24,
-                  MediaQuery.paddingOf(context).bottom + 20,
+                  16,
+                  20,
+                  MediaQuery.paddingOf(context).bottom + 16,
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.85),
+                      Colors.black.withValues(alpha: 0.9),
                       Colors.transparent,
                     ],
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.subtitle != null) ...[
-                      Expanded(
-                        child: Text(
-                          widget.subtitle!,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
+                    if (isVideo && _isVideoInitialized) ...[
+                      // Video Timeline Slider & Time
+                      Row(
+                        children: [
+                          Text(
+                            AppUtils.formatDuration(_videoPosition),
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'monospace'),
                           ),
-                        ),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                                activeTrackColor: AppColors.primary,
+                                inactiveTrackColor: Colors.white24,
+                                thumbColor: Colors.white,
+                              ),
+                              child: Slider(
+                                value: _videoPosition.inMilliseconds
+                                    .toDouble()
+                                    .clamp(0.0, _videoDuration.inMilliseconds.toDouble() > 0
+                                        ? _videoDuration.inMilliseconds.toDouble()
+                                        : 1.0),
+                                min: 0.0,
+                                max: _videoDuration.inMilliseconds.toDouble() > 0
+                                    ? _videoDuration.inMilliseconds.toDouble()
+                                    : 1.0,
+                                onChanged: (val) {
+                                  _videoController?.seekTo(Duration(milliseconds: val.toInt()));
+                                },
+                              ),
+                            ),
+                          ),
+                          Text(
+                            AppUtils.formatDuration(_videoDuration),
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'monospace'),
+                          ),
+                        ],
                       ),
-                      const Gap(16),
+                      const Gap(4),
+
+                      // Video Control Bar (Skip -10s, Play/Pause, Skip +10s, Mute)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.replay_10_rounded, color: Colors.white, size: 28),
+                            onPressed: () => _seekBy(-10),
+                          ),
+                          const Gap(16),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: Icon(
+                                _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                              onPressed: _togglePlayPause,
+                            ),
+                          ),
+                          const Gap(16),
+                          IconButton(
+                            icon: const Icon(Icons.forward_10_rounded, color: Colors.white, size: 28),
+                            onPressed: () => _seekBy(10),
+                          ),
+                          const Gap(16),
+                          IconButton(
+                            icon: Icon(
+                              _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                            onPressed: _toggleMute,
+                          ),
+                        ],
+                      ),
+                      const Gap(12),
                     ],
-                    Expanded(
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _selected
-                              ? AppColors.error
-                              : Colors.white.withValues(alpha: 0.25),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        if (widget.subtitle != null) ...[
+                          Expanded(
+                            child: Text(
+                              widget.subtitle!,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const Gap(16),
+                        ],
+                        Expanded(
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _selected
+                                  ? AppColors.error
+                                  : Colors.white.withValues(alpha: 0.25),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: _toggleSelection,
+                            icon: Icon(
+                              _selected
+                                  ? Icons.delete_sweep_rounded
+                                  : Icons.check_circle_outline_rounded,
+                            ),
+                            label: Text(
+                              _selected ? 'Selected for Trash' : 'Select to Clean',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
-                        onPressed: _toggleSelection,
-                        icon: Icon(
-                          _selected
-                              ? Icons.delete_sweep_rounded
-                              : Icons.check_circle_outline_rounded,
-                        ),
-                        label: Text(
-                          _selected ? 'Selected for Trash' : 'Select to Clean',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -251,6 +404,99 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildImageContent() {
+    return InteractiveViewer(
+      minScale: 0.8,
+      maxScale: 5.0,
+      child: AssetEntityImage(
+        widget.asset,
+        isOriginal: true,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Stack(
+            fit: StackFit.expand,
+            alignment: Alignment.center,
+            children: [
+              AssetEntityImage(
+                widget.asset,
+                isOriginal: false,
+                fit: BoxFit.contain,
+                thumbnailSize: const ThumbnailSize.square(400),
+              ),
+              const Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white70,
+                  strokeWidth: 2,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildVideoContent() {
+    if (_videoController != null && _isVideoInitialized) {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          Center(
+            child: AspectRatio(
+              aspectRatio: _videoController!.value.aspectRatio > 0
+                  ? _videoController!.value.aspectRatio
+                  : (widget.asset.width > 0 && widget.asset.height > 0
+                      ? widget.asset.width / widget.asset.height
+                      : 16 / 9),
+              child: VideoPlayer(_videoController!),
+            ),
+          ),
+          if (!_isPlaying && _showOverlay)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 54,
+              ),
+            ),
+        ],
+      );
+    }
+
+    // Video Loading Placeholder
+    return Stack(
+      fit: StackFit.expand,
+      alignment: Alignment.center,
+      children: [
+        AssetEntityImage(
+          widget.asset,
+          isOriginal: false,
+          fit: BoxFit.contain,
+          thumbnailSize: const ThumbnailSize.square(400),
+        ),
+        const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+              Gap(12),
+              Text(
+                'Loading Video...',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

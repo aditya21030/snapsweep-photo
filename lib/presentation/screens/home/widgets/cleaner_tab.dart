@@ -82,7 +82,7 @@ class _HeaderSection extends StatelessWidget {
                 Text(
                   data.isLoading
                       ? 'Scanning ${data.scope.label.toLowerCase()}...'
-                      : '${data.count} items found • ${data.size}',
+                      : '${data.count} items found | ${data.size}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.secondary,
                     fontWeight: FontWeight.w500,
@@ -141,13 +141,14 @@ class _ProgressSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({bool isLoading, double progress, List<AssetEntity> recent, bool isFirstScan, String timer})>(
+    return Selector<ScanProvider, ({bool isLoading, double progress, List<AssetEntity> recent, bool isFirstScan, String timer, String statusMessage})>(
       selector: (_, p) => (
          isLoading: p.isLoading, 
          progress: p.progress, 
          recent: List.of(p.recentScanned),
          isFirstScan: p.isFirstScan,
-         timer: p.formattedScanDuration
+         timer: p.formattedScanDuration,
+         statusMessage: p.scanStatusMessage,
       ),
       builder: (context, data, child) {
          if (!data.isLoading) return const SizedBox.shrink();
@@ -171,9 +172,21 @@ class _ProgressSection extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                     Text(
-                       data.isFirstScan ? "Fast Scanning Gallery..." : "Scanning...", 
-                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         children: [
+                           Text(
+                             data.isFirstScan ? "Fast Scanning Gallery..." : "Scanning...", 
+                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)
+                           ),
+                           if (data.statusMessage.isNotEmpty)
+                             Text(
+                               data.statusMessage,
+                               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
+                             ),
+                         ],
+                       ),
                      ),
                      Text(
                        "${(data.progress * 100).toInt()}%", 

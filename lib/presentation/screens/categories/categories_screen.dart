@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gap/gap.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/app_utils.dart';
 import '../../providers/scan_provider.dart';
 import 'widgets/category_card.dart';
 
@@ -15,50 +17,135 @@ class CategoriesScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(AppStrings.tabCategories),
       ),
-      body: Selector<ScanProvider, List<String>>(
-        selector: (_, provider) => provider.categories.keys.toList(),
-        shouldRebuild: (prev, next) => prev.length != next.length,
-        builder: (context, keys, child) {
-          if (keys.isEmpty) {
+      body: Consumer<ScanProvider>(
+        builder: (context, provider, child) {
+          final categories = provider.categories;
+          if (categories.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          return GridView.builder(
-            cacheExtent: 2000,
-            padding: EdgeInsets.fromLTRB(20, 16, 20, 90 + MediaQuery.paddingOf(context).bottom),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.9,
-            ),
-            itemCount: keys.length,
-            itemBuilder: (context, index) {
-              final categoryName = keys[index];
+          // Sort category keys: categories with largest total size / count first
+          final sortedKeys = categories.keys.toList()
+            ..sort((a, b) {
+              final sizeA = provider.getCategorySize(a);
+              final sizeB = provider.getCategorySize(b);
+              if (sizeA != sizeB) return sizeB.compareTo(sizeA);
+              return (categories[b]?.length ?? 0).compareTo(categories[a]?.length ?? 0);
+            });
 
-              return Selector<ScanProvider, ({int count, AssetEntity? thumb})>(
-                selector: (_, provider) {
-                  final list = provider.categories[categoryName] ?? [];
-                  return (count: list.length, thumb: list.isNotEmpty ? list.first : null);
-                },
-                builder: (context, data, _) {
-                  return CategoryCard(
-                    title: categoryName,
-                    count: '${data.count} items',
-                    thumbnail: data.thumb,
-                    onTap: () {
-                      context.push(
-                        '/category-cleaner',
-                        extra: {
-                          'title': categoryName,
-                          'assets': context.read<ScanProvider>().categories[categoryName] ?? [],
+          int totalCategorizedBytes = 0;
+          int totalCategorizedCount = 0;
+          for (final entry in categories.entries) {
+            totalCategorizedCount += entry.value.length;
+            totalCategorizedBytes += provider.getCategorySize(entry.key);
+          }
+
+          return CustomScrollView(
+            cacheExtent: 2000,
+            slivers: [
+              // Summary Header Banner
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.12),
+                          AppColors.primary.withValues(alpha: 0.04),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const Gap(16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${categories.length} Smart Categories',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const Gap(4),
+                              Text(
+                                totalCategorizedBytes > 0
+                                    ? '$totalCategorizedCount items   ${AppUtils.formatBytes(totalCategorizedBytes)} organized'
+                                    : '$totalCategorizedCount items organized',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.secondary,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Categories Grid
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 90 + MediaQuery.paddingOf(context).bottom),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.9,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final categoryName = sortedKeys[index];
+                      final list = categories[categoryName] ?? [];
+                      final thumb = list.isNotEmpty ? list.first : null;
+                      final sizeStr = provider.getFormattedCategorySize(categoryName);
+
+                      return CategoryCard(
+                        title: categoryName,
+                        count: '${list.length} items',
+                        size: sizeStr,
+                        thumbnail: thumb,
+                        onTap: () {
+                          context.push(
+                            '/category-cleaner',
+                            extra: {
+                              'title': categoryName,
+                              'assets': list,
+                            },
+                          );
                         },
                       );
                     },
-                  );
-                },
-              );
-            },
+                    childCount: sortedKeys.length,
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
