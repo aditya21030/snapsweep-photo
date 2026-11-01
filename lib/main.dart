@@ -8,6 +8,7 @@ import 'presentation/providers/theme_provider.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 import 'presentation/screens/permission/permission_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
+import 'presentation/screens/swipe/swipe_cleaner_screen.dart';
 import 'presentation/screens/preview/duplicate_preview_screen.dart';
 import 'presentation/screens/settings/legal_screen.dart';
 import 'presentation/screens/cleaner/smart_clean_preview_screen.dart';
@@ -65,6 +66,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/smart-clean',
       builder: (context, state) => const SmartCleanPreviewScreen(),
+    ),
+    GoRoute(
+      path: '/swipe-clean',
+      builder: (context, state) => const SwipeCleanerScreen(),
     ),
     GoRoute(
       path: '/large-videos',

@@ -48,8 +48,9 @@ class FloatingNavBar extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildNavItem(context, 0, Icons.auto_awesome_rounded, "Cleaner"),
-                _buildNavItem(context, 1, Icons.grid_view_rounded, "Categories"),
-                _buildNavItem(context, 2, Icons.settings_rounded, "Settings"),
+                _buildNavItem(context, 1, Icons.style_rounded, "Swipe"),
+                _buildNavItem(context, 2, Icons.grid_view_rounded, "Categories"),
+                _buildNavItem(context, 3, Icons.settings_rounded, "Settings"),
               ],
             ),
           ),
@@ -74,7 +75,7 @@ class FloatingNavBar extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 18 : 12,
+          horizontal: isSelected ? 14 : 10,
           vertical: 8,
         ),
         decoration: BoxDecoration(

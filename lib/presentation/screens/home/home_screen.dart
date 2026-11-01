@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/scan_provider.dart';
 import '../categories/categories_screen.dart';
 import '../settings/settings_screen.dart';
+import '../swipe/swipe_cleaner_screen.dart';
 import 'widgets/cleaner_tab.dart';
 import 'widgets/floating_nav_bar.dart';
 
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Define screens as const widgets to prevent rebuilding
     final List<Widget> screens = const [
       CleanerTab(),
+      SwipeCleanerScreen(),
       CategoriesScreen(),
       SettingsScreen(),
     ];
