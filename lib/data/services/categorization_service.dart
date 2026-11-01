@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -25,6 +26,12 @@ class CategorizationService {
     'Memes & Downloads',
     'Personal & Portraits',
     'Others',
+  ];
+
+  static const List<String> _foodKeywords = [
+    'food', 'recipe', 'dish', 'cooking', 'dinner', 'lunch', 'breakfast', 'snack',
+    'dessert', 'cake', 'swiggy', 'zomato', 'pizza', 'burger', 'restaurant', 'cafe',
+    'coffee', 'tea', 'menu', 'baking', 'cocktail', 'juice', 'meal', 'curry', 'pasta'
   ];
 
   static const List<String> _foodLabels = [
@@ -164,9 +171,27 @@ class CategorizationService {
       if (title.contains(kw)) return 'Memes & Downloads';
     }
 
-    // 7. Explicit selfie / portrait title or album
-    if (album.contains('selfie') || album.contains('portrait') || title.contains('selfie') || title.contains('portrait')) {
+    // 7. Food & Dining keyword match in album or title
+    for (final kw in _foodKeywords) {
+      if (combined.contains(kw)) return 'Food & Dining';
+    }
+
+    // 8. Camera Roll & Personal Photos (DCIM, Camera, IMG_..., DSC_...)
+    if (album.contains('camera') || album.contains('dcim') || album.contains('100media') ||
+        path.contains('camera') || path.contains('dcim') ||
+        title.startsWith('img_') || title.startsWith('dsc_') || title.startsWith('p_') ||
+        title.startsWith('mvimg_') || album.contains('selfie') || album.contains('portrait')) {
       return 'Personal & Portraits';
+    }
+
+    // 9. Standard camera aspect ratio photos (4:3, 16:9)
+    if (asset.width > 0 && asset.height > 0) {
+      final longer = max(asset.width, asset.height);
+      final shorter = min(asset.width, asset.height);
+      final ratio = longer / shorter;
+      if ((ratio >= 1.30 && ratio <= 1.36) || (ratio >= 1.74 && ratio <= 1.80)) {
+        return 'Personal & Portraits';
+      }
     }
 
     return null;
@@ -178,7 +203,21 @@ class CategorizationService {
     if (quick != null) return quick;
 
     try {
-      final file = await asset.file;
+      // Use downscaled 360x360 thumbnail for ML to avoid decoding 40MB raw photos
+      Uint8List? thumbBytes;
+      try {
+        thumbBytes = await asset.thumbnailDataWithSize(const ThumbnailSize.square(360));
+      } catch (_) {}
+
+      File? file;
+      if (thumbBytes != null && thumbBytes.isNotEmpty) {
+        final tempDir = Directory.systemTemp;
+        file = File('${tempDir.path}/snapsweep_ml_thumb_${asset.id.hashCode}.jpg');
+        await file.writeAsBytes(thumbBytes, flush: true);
+      } else {
+        file = await asset.file;
+      }
+
       if (file == null || !await file.exists()) {
         return _fallbackCategory(asset, albumName: albumName);
       }
@@ -272,6 +311,9 @@ class CategorizationService {
 
       // Smartphone screenshot ratio
       if (ratio >= 1.95 && ratio <= 2.35) return 'Screenshots';
+
+      // Standard camera photo ratios (4:3, 16:9, etc.)
+      return 'Personal & Portraits';
     }
 
     return 'Others';

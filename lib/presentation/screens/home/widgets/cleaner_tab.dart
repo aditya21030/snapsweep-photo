@@ -53,14 +53,15 @@ class _HeaderSection extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
-            Consumer<ScanProvider>(
-              builder: (context, provider, _) {
+            Selector<ScanProvider, bool>(
+              selector: (_, p) => p.isLoading,
+              builder: (context, isLoading, _) {
                 return IconButton.filledTonal(
                   icon: Icon(
-                    provider.isLoading ? Icons.hourglass_top_rounded : Icons.refresh_rounded,
+                    isLoading ? Icons.hourglass_top_rounded : Icons.refresh_rounded,
                     size: 20,
                   ),
-                  onPressed: provider.isLoading ? null : () => provider.scan(force: true),
+                  onPressed: isLoading ? null : () => context.read<ScanProvider>().scan(force: true),
                   tooltip: 'Rescan Gallery',
                 );
               },
@@ -511,8 +512,30 @@ class _DashboardSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ScanProvider>(
-      builder: (context, provider, child) {
+    return Selector<ScanProvider, ({
+      bool isLoading,
+      int dupCount,
+      String dupSize,
+      int simCount,
+      String simSize,
+      int vidCount,
+      String vidSize,
+      int blurCount,
+      String blurSize,
+    })>(
+      selector: (_, p) => (
+        isLoading: p.isLoading,
+        dupCount: p.totalDuplicateCount,
+        dupSize: p.formattedDuplicateSize,
+        simCount: p.totalSimilarCount,
+        simSize: p.formattedSimilarSize,
+        vidCount: p.largeVideos.length,
+        vidSize: p.formattedLargeVideosSize,
+        blurCount: p.blurryPhotos.length,
+        blurSize: p.formattedBlurrySize,
+      ),
+      builder: (context, data, child) {
+        final provider = context.read<ScanProvider>();
          final duplicatePreviews = provider.duplicateGroups
              .take(4)
              .map((group) => group.isNotEmpty ? group.first : null)

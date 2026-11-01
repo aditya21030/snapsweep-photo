@@ -20,6 +20,10 @@ import 'core/services/billing_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Optimize image cache for buttery smooth photo grid scrolling
+  PaintingBinding.instance.imageCache.maximumSize = 2500;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark, // Default to dark icons

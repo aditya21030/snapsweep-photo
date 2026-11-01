@@ -419,7 +419,7 @@ class ScanProvider extends ChangeNotifier {
     _targetProgress = 0.08;
     _scanStatusMessage = 'Scanning media albums...';
 
-    _progressTicker = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _progressTicker = Timer.periodic(const Duration(milliseconds: 150), (timer) {
       if (!_isLoading) {
         timer.cancel();
         return;
@@ -427,12 +427,12 @@ class ScanProvider extends ChangeNotifier {
 
       if (_progress < _targetProgress) {
         final diff = _targetProgress - _progress;
-        final step = diff > 0.15 ? 0.02 : 0.01;
+        final step = diff > 0.15 ? 0.03 : 0.015;
         _progress = (_progress + step).clamp(0.0, _targetProgress);
         notifyListeners();
       } else if (_progress < 0.99) {
         // Continuous steady tick while processing so user never sees freeze
-        _progress = (_progress + 0.0012).clamp(0.0, 0.99);
+        _progress = (_progress + 0.003).clamp(0.0, 0.99);
         notifyListeners();
       }
     });
@@ -988,35 +988,34 @@ class ScanProvider extends ChangeNotifier {
   Future<void> _refineCategoriesWithML(List<AssetEntity> items, int sessionId) async {
     if (items.isEmpty) return;
 
-    const int batchSize = 10;
-    for (int i = 0; i < items.length; i += batchSize) {
+    // Hard cap candidate count to prevent CPU/memory saturation
+    final candidates = items.take(40).toList();
+    bool anyChanged = false;
+
+    for (final asset in candidates) {
       if (_scanSessionId != sessionId) return;
 
-      final end = min(i + batchSize, items.length);
-      final batch = items.sublist(i, end);
+      // Yield time to the UI thread to ensure 60/120 fps smoothness
+      await Future.delayed(const Duration(milliseconds: 60));
+      if (_scanSessionId != sessionId) return;
 
-      bool changed = false;
-      await Future.wait(batch.map((asset) async {
-        final albumName = _assetAlbumMap[asset.id];
-        final detectedCat = await _categorizationService.categorizeWithML(asset, albumName: albumName);
-
-        if (_scanSessionId != sessionId) return;
-
-        if (detectedCat != 'Others') {
-          _addAssetToCategory(detectedCat, asset);
-          changed = true;
-        }
-
-        if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
-        _scanCache[asset.id]!['category'] = detectedCat;
-      }));
+      final albumName = _assetAlbumMap[asset.id];
+      final detectedCat = await _categorizationService.categorizeWithML(asset, albumName: albumName);
 
       if (_scanSessionId != sessionId) return;
 
-      if (changed) {
-        _recalculateCategorySizes();
-        notifyListeners();
+      if (detectedCat != 'Others') {
+        _addAssetToCategory(detectedCat, asset);
+        anyChanged = true;
       }
+
+      if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
+      _scanCache[asset.id]!['category'] = detectedCat;
+    }
+
+    if (anyChanged && _scanSessionId == sessionId) {
+      _recalculateCategorySizes();
+      notifyListeners();
     }
 
     unawaited(_saveCache());

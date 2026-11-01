@@ -114,6 +114,10 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
 
   SortOption _sortOption = SortOption.size;
 
+  List<List<AssetEntity>>? _cachedSortedGroups;
+  List<List<AssetEntity>>? _lastRawGroups;
+  SortOption? _lastSortOption;
+
   void _selectCopies(List<List<AssetEntity>> groups) {
     HapticFeedback.lightImpact();
     setState(() {
@@ -170,6 +174,12 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   }
 
   List<List<AssetEntity>> _sortGroups(List<List<AssetEntity>> original, Map<String, int> assetSizes) {
+    if (_cachedSortedGroups != null &&
+        identical(_lastRawGroups, original) &&
+        _lastSortOption == _sortOption) {
+      return _cachedSortedGroups!;
+    }
+
     List<List<AssetEntity>> processed = List.from(original);
     if (_sortOption == SortOption.size) {
       processed.sort((a, b) {
@@ -183,6 +193,10 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         return b.first.createDateTime.compareTo(a.first.createDateTime);
       });
     }
+
+    _lastRawGroups = original;
+    _lastSortOption = _sortOption;
+    _cachedSortedGroups = processed;
     return processed;
   }
 
@@ -325,6 +339,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                         ),
                       )
                     : ListView.builder(
+                        cacheExtent: 600,
                         padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.paddingOf(context).bottom + 100),
                         itemCount: groups.length,
                         itemBuilder: (context, index) {

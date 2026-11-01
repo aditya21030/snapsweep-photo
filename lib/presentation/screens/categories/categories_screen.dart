@@ -17,8 +17,12 @@ class CategoriesScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(AppStrings.tabCategories),
       ),
-      body: Consumer<ScanProvider>(
-        builder: (context, provider, child) {
+      body: Selector<ScanProvider, int>(
+        selector: (_, p) => Object.hashAll(
+          p.categories.entries.map((e) => Object.hash(e.key, e.value.length, p.getCategorySize(e.key))),
+        ),
+        builder: (context, _, child) {
+          final provider = context.read<ScanProvider>();
           final categories = provider.categories;
           if (categories.isEmpty) {
             return const Center(child: CircularProgressIndicator());

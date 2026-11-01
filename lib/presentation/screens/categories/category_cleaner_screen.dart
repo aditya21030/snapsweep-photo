@@ -31,6 +31,11 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   CategoryFilter _activeFilter = CategoryFilter.all;
   CategorySort _activeSort = CategorySort.largestFirst;
 
+  List<AssetEntity>? _cachedDisplayAssets;
+  List<AssetEntity>? _lastRawAssets;
+  CategoryFilter? _lastFilter;
+  CategorySort? _lastSort;
+
   Future<void> _cleanSelected() async {
     if (_selectedIds.isEmpty) return;
 
@@ -113,6 +118,13 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   }
 
   List<AssetEntity> _filterAndSort(List<AssetEntity> rawAssets, Map<String, int> assetSizes) {
+    if (_cachedDisplayAssets != null &&
+        identical(_lastRawAssets, rawAssets) &&
+        _lastFilter == _activeFilter &&
+        _lastSort == _activeSort) {
+      return _cachedDisplayAssets!;
+    }
+
     final now = DateTime.now();
     final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
@@ -147,17 +159,21 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
         break;
     }
 
+    _lastRawAssets = rawAssets;
+    _lastFilter = _activeFilter;
+    _lastSort = _activeSort;
+    _cachedDisplayAssets = filtered;
     return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ScanProvider>();
-    final currentAssets = widget.title == 'Large Videos'
-        ? provider.largeVideos
-        : (widget.title == 'Blurry Photos'
-            ? provider.blurryPhotos
-            : (provider.categories[widget.title] ?? widget.assets));
+    final provider = context.read<ScanProvider>();
+    final currentAssets = context.select<ScanProvider, List<AssetEntity>>((p) {
+      if (widget.title == 'Large Videos') return p.largeVideos;
+      if (widget.title == 'Blurry Photos') return p.blurryPhotos;
+      return p.categories[widget.title] ?? widget.assets;
+    });
 
     final displayAssets = _filterAndSort(currentAssets, provider.assetSizes);
 
@@ -300,6 +316,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                           ),
                         )
                       : GridView.builder(
+                          cacheExtent: 600,
                           padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.paddingOf(context).bottom + 100),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,

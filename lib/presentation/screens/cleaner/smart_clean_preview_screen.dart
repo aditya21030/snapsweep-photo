@@ -190,6 +190,7 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                     ),
                     Expanded(
                       child: GridView.builder(
+                        cacheExtent: 600,
                         padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.paddingOf(context).bottom + 100),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
