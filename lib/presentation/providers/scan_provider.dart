@@ -509,11 +509,25 @@ class ScanProvider extends ChangeNotifier {
 
       _setTargetProgress(0.28, status: 'Organizing smart categories...');
 
-      // 2. Authoritative Categorization Pass using Album Names + Path + Title
+      // 2. Authoritative Categorization Pass using Album Names + Path + Title + ML Refinement
+      final List<AssetEntity> assetsNeedingML = [];
+
       for (final asset in _allScreenshots) {
-        final albumName = _assetAlbumMap[asset.id];
-        final cat = _categorizationService.quickCategorize(asset, albumName: albumName);
-        _addAssetToCategory(cat, asset);
+        final cachedCat = _scanCache[asset.id]?['category'] as String?;
+        if (cachedCat != null && cachedCat.isNotEmpty && _categories.containsKey(cachedCat)) {
+          _addAssetToCategory(cachedCat, asset);
+        } else {
+          final albumName = _assetAlbumMap[asset.id];
+          final quickCat = _categorizationService.quickCategorize(asset, albumName: albumName);
+          if (quickCat != null) {
+            _addAssetToCategory(quickCat, asset);
+            if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
+            _scanCache[asset.id]!['category'] = quickCat;
+          } else {
+            _addAssetToCategory('Others', asset);
+            assetsNeedingML.add(asset);
+          }
+        }
 
         if (_scanCache[asset.id]?['is_blurry'] == true) {
           _blurryPhotos.add(asset);
@@ -526,6 +540,11 @@ class ScanProvider extends ChangeNotifier {
       }
 
       _recalculateCategorySizes();
+
+      // Trigger asynchronous ML visual refinement in background
+      if (assetsNeedingML.isNotEmpty) {
+        _refineCategoriesWithML(assetsNeedingML, mySessionId);
+      }
       _setTargetProgress(0.38, status: 'Identifying candidate duplicates...');
 
       // 3. Spawn Background Isolate
@@ -942,6 +961,43 @@ class ScanProvider extends ChangeNotifier {
   }
 
   final Map<String, String> _assetCategoryMap = {};
+
+  Future<void> _refineCategoriesWithML(List<AssetEntity> items, int sessionId) async {
+    if (items.isEmpty) return;
+
+    const int batchSize = 10;
+    for (int i = 0; i < items.length; i += batchSize) {
+      if (_scanSessionId != sessionId) return;
+
+      final end = min(i + batchSize, items.length);
+      final batch = items.sublist(i, end);
+
+      bool changed = false;
+      await Future.wait(batch.map((asset) async {
+        final albumName = _assetAlbumMap[asset.id];
+        final detectedCat = await _categorizationService.categorizeWithML(asset, albumName: albumName);
+
+        if (_scanSessionId != sessionId) return;
+
+        if (detectedCat != 'Others') {
+          _addAssetToCategory(detectedCat, asset);
+          changed = true;
+        }
+
+        if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
+        _scanCache[asset.id]!['category'] = detectedCat;
+      }));
+
+      if (_scanSessionId != sessionId) return;
+
+      if (changed) {
+        _recalculateCategorySizes();
+        notifyListeners();
+      }
+    }
+
+    unawaited(_saveCache());
+  }
 
   void _addAssetToCategory(String category, AssetEntity asset) {
     final oldCat = _assetCategoryMap[asset.id];

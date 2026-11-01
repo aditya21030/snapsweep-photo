@@ -371,10 +371,10 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                     ),
                                   ),
 
-                                  // Video Duration Pill
+                                  // Video Duration Pill (Top-Left)
                                   if (isVideo)
                                     Positioned(
-                                      bottom: 6,
+                                      top: 6,
                                       left: 6,
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
