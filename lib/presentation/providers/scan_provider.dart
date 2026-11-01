@@ -92,6 +92,9 @@ class ScanProvider extends ChangeNotifier {
   List<AssetEntity> _allScreenshots = [];
   List<AssetEntity> get allScreenshots => _allScreenshots;
 
+  Map<String, String> _assetAlbumMap = {};
+  Map<String, String> get assetAlbumMap => _assetAlbumMap;
+
   // Duplicates: Lists of assets that are duplicates (grouped)
   List<List<AssetEntity>> _duplicateGroups = [];
   List<List<AssetEntity>> get duplicateGroups => _duplicateGroups;
@@ -413,10 +416,10 @@ class ScanProvider extends ChangeNotifier {
   void _startProgressTicker() {
     _progressTicker?.cancel();
     _progress = 0.01;
-    _targetProgress = 0.06;
+    _targetProgress = 0.08;
     _scanStatusMessage = 'Scanning media albums...';
 
-    _progressTicker = Timer.periodic(const Duration(milliseconds: 55), (timer) {
+    _progressTicker = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (!_isLoading) {
         timer.cancel();
         return;
@@ -424,12 +427,12 @@ class ScanProvider extends ChangeNotifier {
 
       if (_progress < _targetProgress) {
         final diff = _targetProgress - _progress;
-        final step = diff > 0.18 ? 0.02 : 0.01;
+        final step = diff > 0.15 ? 0.02 : 0.01;
         _progress = (_progress + step).clamp(0.0, _targetProgress);
         notifyListeners();
-      } else if (_progress < 0.98) {
-        // Continuous micro-tick while I/O is running so user never sees freeze
-        _progress = (_progress + 0.0016).clamp(0.0, 0.98);
+      } else if (_progress < 0.99) {
+        // Continuous steady tick while processing so user never sees freeze
+        _progress = (_progress + 0.0012).clamp(0.0, 0.99);
         notifyListeners();
       }
     });
@@ -472,14 +475,15 @@ class ScanProvider extends ChangeNotifier {
     scanLargeVideos();
 
     try {
-      // 1. Fetch Assets
-      _setTargetProgress(0.12, status: 'Scanning media albums...');
+      // 1. Fetch Assets and Authoritative Folder / Album Mappings
+      _setTargetProgress(0.15, status: 'Scanning media albums...');
       final scanResult = await _mediaService.fetchAllAssets(scope: _scanScope);
       if (_scanSessionId != mySessionId) return;
 
       final uniqueAssets = {for (var a in scanResult.screenshots) a.id: a};
       _allScreenshots = uniqueAssets.values.toList();
-      _debugLogs += '\nFound ${_allScreenshots.length} assets.';
+      _assetAlbumMap = scanResult.assetAlbumMap;
+      _debugLogs += '\nFound ${_allScreenshots.length} assets across ${_assetAlbumMap.length} folder tags.';
 
       // Reset Collections
       _duplicateGroups = [];
@@ -503,11 +507,12 @@ class ScanProvider extends ChangeNotifier {
       };
       _assetCategoryMap.clear();
 
-      _setTargetProgress(0.22, status: 'Organizing smart categories...');
+      _setTargetProgress(0.28, status: 'Organizing smart categories...');
 
-      // 2. Comprehensive Categorization Pass
+      // 2. Authoritative Categorization Pass using Album Names + Path + Title
       for (final asset in _allScreenshots) {
-        final cat = _categorizationService.quickCategorize(asset);
+        final albumName = _assetAlbumMap[asset.id];
+        final cat = _categorizationService.quickCategorize(asset, albumName: albumName);
         _addAssetToCategory(cat, asset);
 
         if (_scanCache[asset.id]?['is_blurry'] == true) {
@@ -521,7 +526,7 @@ class ScanProvider extends ChangeNotifier {
       }
 
       _recalculateCategorySizes();
-      _setTargetProgress(0.32, status: 'Identifying candidate duplicates...');
+      _setTargetProgress(0.38, status: 'Identifying candidate duplicates...');
 
       // 3. Spawn Background Isolate
       await _spawnIsolate();
@@ -586,16 +591,12 @@ class ScanProvider extends ChangeNotifier {
       // C) Blurry Candidates: camera shots
       final List<AssetEntity> cameraPhotos = (_allScreenshots.where((a) {
         if (a.type != AssetType.image) return false;
-        final path = '${a.title ?? ''} ${a.relativePath ?? ''}'.toLowerCase();
+        final path = '${a.title ?? ''} ${a.relativePath ?? ''} ${_assetAlbumMap[a.id] ?? ''}'.toLowerCase();
         return path.contains('dcim') || path.contains('camera') || path.contains('img_');
       }).take(60).toList());
 
-      // 5. TARGETED BATCH RESOLUTION WITH LIVE STREAMING
-      _setTargetProgress(0.42, status: 'Analyzing duplicate file sizes...');
-
-      _batchesSent = 0;
-      _batchesProcessed = 0;
-      _allBatchesProcessedCompleter = Completer<void>();
+      // 5. TARGETED BATCH RESOLUTION
+      _setTargetProgress(0.48, status: 'Analyzing duplicate file sizes...');
 
       // Step A: Stat file sizes for duplicate candidates in parallel chunks of 20
       for (int i = 0; i < duplicateCandidates.length; i += 20) {
@@ -631,7 +632,7 @@ class ScanProvider extends ChangeNotifier {
         }
 
         final ratio = (i + chunk.length) / max(1, duplicateCandidates.length);
-        _setTargetProgress(0.42 + 0.14 * ratio, status: 'Analyzing duplicate file sizes...');
+        _setTargetProgress(0.48 + 0.12 * ratio, status: 'Analyzing duplicate file sizes...');
       }
 
       // Group candidate duplicates by (dimension, size)
@@ -644,8 +645,10 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      // Prepare MD5 items for identical size & dimension matches
-      List<ScanItem> md5Batch = [];
+      // Collect all scan items for Isolate processing in one clean, structured batch
+      List<ScanItem> allScanItems = [];
+
+      // A) MD5 items
       for (final group in exactCandidateGroups.values) {
         if (group.length > 1) {
           for (final asset in group) {
@@ -657,7 +660,7 @@ class ScanProvider extends ChangeNotifier {
                 if (file != null) path = file.path;
               } catch (_) {}
             }
-            md5Batch.add(ScanItem(
+            allScanItems.add(ScanItem(
               id: asset.id,
               path: path,
               cachedMd5: cachedMd5,
@@ -669,15 +672,8 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      // Stream MD5 batch to isolate immediately
-      if (md5Batch.isNotEmpty) {
-        _batchesSent++;
-        _isolateSendPort!.send(ScanBatch(md5Batch));
-      }
-
-      // Step B: Parallel Thumbnail Generation for Bursts (Similar Photos)
-      _setTargetProgress(0.58, status: 'Reviewing burst sequences...');
-
+      // B) Burst items (Similar Photos)
+      _setTargetProgress(0.62, status: 'Reviewing burst sequences...');
       final List<({AssetEntity asset, String clusterId})> burstTasks = [];
       final Set<String> processedSimilarIds = {};
       for (final entry in burstClusters.entries) {
@@ -689,10 +685,9 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      // Fetch burst thumbnails in parallel chunks of 12 and stream to isolate
-      for (int i = 0; i < burstTasks.length; i += 12) {
+      for (int i = 0; i < burstTasks.length; i += 16) {
         if (_scanSessionId != mySessionId) return;
-        final chunk = burstTasks.sublist(i, min(i + 12, burstTasks.length));
+        final chunk = burstTasks.sublist(i, min(i + 16, burstTasks.length));
 
         final chunkResults = await Future.wait(chunk.map((item) async {
           final cachedDHash = _scanCache[item.asset.id]?['dHash'] as String?;
@@ -714,25 +709,20 @@ class ScanProvider extends ChangeNotifier {
           );
         }));
 
-        if (chunkResults.isNotEmpty) {
-          _batchesSent++;
-          _isolateSendPort!.send(ScanBatch(chunkResults));
-        }
-
+        allScanItems.addAll(chunkResults);
         final ratio = (i + chunk.length) / max(1, burstTasks.length);
-        _setTargetProgress(0.58 + 0.18 * ratio, status: 'Reviewing burst sequences...');
+        _setTargetProgress(0.62 + 0.18 * ratio, status: 'Reviewing burst sequences...');
       }
 
-      // Step C: Parallel Blurry Photo Check on Camera Photos
-      _setTargetProgress(0.78, status: 'Checking photo sharpness...');
-
+      // C) Blurry Photo Checks on Camera Photos
+      _setTargetProgress(0.82, status: 'Checking photo sharpness...');
       final List<AssetEntity> blurCandidates = cameraPhotos
           .where((a) => _scanCache[a.id]?['is_blurry'] == null)
           .toList();
 
-      for (int i = 0; i < blurCandidates.length; i += 10) {
+      for (int i = 0; i < blurCandidates.length; i += 12) {
         if (_scanSessionId != mySessionId) return;
-        final chunk = blurCandidates.sublist(i, min(i + 10, blurCandidates.length));
+        final chunk = blurCandidates.sublist(i, min(i + 12, blurCandidates.length));
 
         final chunkResults = await Future.wait(chunk.map((asset) async {
           Uint8List? thumb;
@@ -751,19 +741,18 @@ class ScanProvider extends ChangeNotifier {
           );
         }));
 
-        final validItems = chunkResults.whereType<ScanItem>().toList();
-        if (validItems.isNotEmpty) {
-          _batchesSent++;
-          _isolateSendPort!.send(ScanBatch(validItems));
-        }
-
+        allScanItems.addAll(chunkResults.whereType<ScanItem>());
         final ratio = (i + chunk.length) / max(1, blurCandidates.length);
-        _setTargetProgress(0.78 + 0.12 * ratio, status: 'Checking photo sharpness...');
+        _setTargetProgress(0.82 + 0.10 * ratio, status: 'Checking photo sharpness...');
       }
 
-      // Wait for all isolate batches to complete
-      _setTargetProgress(0.92, status: 'Finalizing grouping...');
-      if (_batchesSent > 0 && _batchesProcessed < _batchesSent) {
+      // 6. Send Items to Isolate and Await Completion
+      _setTargetProgress(0.93, status: 'Finalizing grouping...');
+      if (allScanItems.isNotEmpty) {
+        _batchesSent = 1;
+        _batchesProcessed = 0;
+        _allBatchesProcessedCompleter = Completer<void>();
+        _isolateSendPort!.send(ScanBatch(allScanItems));
         await _allBatchesProcessedCompleter!.future;
       }
 
@@ -773,8 +762,12 @@ class ScanProvider extends ChangeNotifier {
       await _finalResultsCompleter!.future;
 
       _recalculateCategorySizes();
-      await _saveCache();
+
+      // Finish progress smoothly to 100%
       _finishProgress();
+
+      // Save cache in background without freezing UI
+      unawaited(_saveCache());
     } catch (e) {
       debugPrint('Scan Error: $e');
       _debugLogs += '\nCritical Error: $e';
@@ -916,7 +909,7 @@ class ScanProvider extends ChangeNotifier {
     _calculateSmartCleanData();
     _recalculateCategorySizes();
     notifyListeners();
-    await _saveCache();
+    unawaited(_saveCache());
   }
 
   Future<void> forceRescan() async {
@@ -932,13 +925,13 @@ class ScanProvider extends ChangeNotifier {
       'Others': [],
     };
     _assetCategoryMap.clear();
+    _assetAlbumMap.clear();
 
     for (var key in _scanCache.keys) {
       _scanCache[key]!.remove('category');
       _scanCache[key]!.remove('is_blurry');
     }
 
-    await _saveCache();
     notifyListeners();
 
     if (_isolateSendPort != null) {

@@ -231,7 +231,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
                 Text(
                   '${_selectedIds.length} of $totalPhotosInGroups selected',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),

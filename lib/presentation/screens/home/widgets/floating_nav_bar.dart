@@ -91,7 +91,7 @@ class FloatingNavBar extends StatelessWidget {
               size: 22,
               color: isSelected 
                   ? AppColors.primary 
-                  : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             if (isSelected) ...[
               const Gap(8),

@@ -35,13 +35,18 @@
 ### 🎥 Large Videos Cleaner
 * **Direct MediaStore Discovery**: Surfaces space-hogging 4K/1080p video recordings and WhatsApp video forwards in parallel batches of 15.
 
+### 💳 Google Play In-App Billing
+* **Permanent Ad-Free License**: Official Google Play Billing integration (`snapsweep_remove_ads`) allowing users to permanently remove ads.
+* **Instant Purchase Restoration**: One-tap purchase restoration synchronized with Google Play services across devices.
+* **Smart Ad Suppression**: When premium license is active, all interstitial ads are disabled throughout the app.
+
 ### 🗂️ 8 Smart Media Categories
-1. **Screenshots** (DCIM/Screenshots, Screen capture patterns)
-2. **Social & WhatsApp** (WhatsApp Images, Telegram, Instagram)
-3. **Bills & Finance** (Invoices, receipts, statement captures)
-4. **Documents & IDs** (Documents, cards, forms)
-5. **Food & Dining** (Food photos, menus)
-6. **Memes & Downloads** (Download folder, humor graphics)
+1. **Screenshots** (Authoritative Android Screenshots bucket and screen aspect ratio heuristics)
+2. **Social & WhatsApp** (WhatsApp Images, WhatsApp Video, Telegram, Instagram)
+3. **Bills & Finance** (Invoices, receipts, financial document keywords)
+4. **Documents & IDs** (PDFs, docs, ID cards, forms)
+5. **Food & Dining** (Food photos, dining captures)
+6. **Memes & Downloads** (Download bucket, humor graphics)
 7. **Personal & Portraits** (Camera roll portraits)
 8. **Others** (General gallery items)
 

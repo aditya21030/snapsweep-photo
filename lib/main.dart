@@ -15,6 +15,7 @@ import 'presentation/screens/cleaner/smart_clean_preview_screen.dart';
 import 'presentation/screens/categories/category_cleaner_screen.dart';
 import 'package:flutter/services.dart';
 import 'core/services/ad_service.dart';
+import 'core/services/billing_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,8 @@ void main() async {
   ));
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   
-  // Initialize ads safely
+  // Initialize billing & ads safely
+  await BillingService.initialize();
   await AdService.initialize();
   
   runApp(const SnapSweepApp());

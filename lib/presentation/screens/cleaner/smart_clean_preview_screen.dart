@@ -129,7 +129,7 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                 const Text('Exact Copies Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
                 Text(
                   '${_selectedIds.length} of ${candidates.length} selected',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),

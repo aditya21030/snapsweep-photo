@@ -35,9 +35,7 @@ class LegalScreen extends StatelessWidget {
                 content,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       height: 1.5,
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[300] 
-                          : Colors.grey[800],
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
               ),
               const Gap(40),

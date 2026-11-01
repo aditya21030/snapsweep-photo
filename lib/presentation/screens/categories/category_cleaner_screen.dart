@@ -176,7 +176,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
             Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
             Text(
               '${_selectedIds.length} of ${displayAssets.length} selected',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -282,7 +282,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                         child: Text(
                           'Tap item to view / play   Tap checkbox to select for trash',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.secondary,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                         ),
                       ),
@@ -296,7 +296,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                       ? Center(
                           child: Text(
                             'No items match the selected filter.',
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                         )
                       : GridView.builder(

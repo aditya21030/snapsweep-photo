@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:gap/gap.dart';
-import '../../../core/constants/legal_content.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:gap/gap.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/theme_provider.dart';
-import '../../providers/scan_provider.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/legal_content.dart';
+import '../../../core/services/billing_service.dart';
+import 'legal_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,178 +17,211 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final String _version = '1.0.3';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    // PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    // setState(() {
-    //   _version = packageInfo.version;
-    // });
-    // Commented out package_info_plus usage until dependency is confirmed/added. 
-    // Manual for now.
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Gap(20),
-            Text(
-              "Settings",
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                
-              ),
-            ),
-            const Gap(30),
-            
-            // Section: General
-            _buildSectionHeader("General"),
-            _buildSettingsTile(
-              context,
-              icon: Icons.dark_mode_outlined,
-              title: "Appearance",
-              subtitle: "Light, Dark, System",
-              iconColor: Colors.deepPurple,
-              onTap: () {
-                _showThemeDialog(context);
-              },
-            ),
-            _buildSettingsTile(
-              context,
-              icon: Icons.cleaning_services_rounded,
-              title: "Clear Cache & Rescan",
-              subtitle: "Re-index gallery and reset scan cache",
-              iconColor: Colors.teal,
-              onTap: () async {
-                HapticFeedback.selectionClick();
-                final provider = context.read<ScanProvider>();
-                await provider.forceRescan();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Scan cache cleared. Rescanning gallery...')),
-                  );
-                }
-              },
-            ),
-
-            
-            const Gap(20),
-
-            // Section: Premium
-            _buildSectionHeader("Premium"),
-            _buildSettingsTile(
-              context,
-              icon: Icons.diamond_outlined,
-              title: "Remove Ads",
-              subtitle: "Enjoy an ad-free experience",
-              iconColor: Colors.purple,
-              onTap: () {
-                _showComingSoon(context);
-              },
-            ),
-            
-            const Gap(20),
-
-            // Section: Support
-            _buildSectionHeader("Support"),
-            _buildSettingsTile(
-              context,
-              icon: Icons.star_outline_rounded,
-              title: "Rate Us",
-              subtitle: "Love the app? Let us know!",
-              iconColor: Colors.orange,
-              onTap: () {
-                 _showComingSoon(context);
-              },
-            ),
-
-
-            _buildSettingsTile(
-              context,
-              icon: Icons.share_outlined,
-              title: "Share App",
-              subtitle: "Share with friends & family",
-              iconColor: Colors.blue,
-              onTap: () async {
-                 final messenger = ScaffoldMessenger.of(context);
-                 debugPrint('Share button clicked');
-                 try {
-                   await Share.share('Check out Snapsweep! A smart cleaner for your gallery. Download now: https://play.google.com/store/apps/details?id=com.yousful.snapsweep');
-                   debugPrint('Share dialog shown');
-                 } catch (e) {
-                   debugPrint('Share Error: $e');
-                   if (mounted) {
-                     messenger.showSnackBar(SnackBar(content: Text('Share failed: $e')));
-                   }
-                 }
-              },
-            ),
-            
-            const Gap(20),
-            
-            // Section: About
-            _buildSectionHeader("About"),
-            _buildSettingsTile(
-              context,
-              icon: Icons.privacy_tip_outlined,
-              title: "Privacy Policy",
-              iconColor: Colors.grey,
-              onTap: () {
-                context.push('/legal', extra: {
-                  'title': 'Privacy Policy',
-                  'content': LegalContent.privacyPolicy,
-                });
-              },
-            ),
-             _buildSettingsTile(
-              context,
-              icon: Icons.description_outlined,
-              title: "Terms of Service",
-              iconColor: Colors.grey,
-              onTap: () {
-                context.push('/legal', extra: {
-                  'title': 'Terms of Service',
-                  'content': LegalContent.termsOfService,
-                });
-              },
-            ),
-
-            const Gap(40),
-            Center(
-              child: Text(
-                "Version $_version",
-                style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500] : Colors.grey[400],
-                  fontSize: 12
-                ),
-              ),
-            ),
-            Gap(90 + MediaQuery.paddingOf(context).bottom), // Dynamic bottom padding for floating nav
-          ],
+      appBar: AppBar(
+        title: const Text(
+          'Settings',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          // Section: Preferences
+          _buildSectionHeader('Preferences'),
+          _buildSettingsTile(
+            context,
+            icon: Icons.palette_outlined,
+            title: 'Theme',
+            subtitle: 'System default, light, dark',
+            iconColor: AppColors.primary,
+            onTap: () {
+              _showThemeDialog(context);
+            },
+          ),
+
+          const Gap(20),
+
+          // Section: Premium & Billing
+          _buildSectionHeader('Premium'),
+          ValueListenableBuilder<bool>(
+            valueListenable: BillingService.isPremiumNotifier,
+            builder: (context, isPremium, child) {
+              if (isPremium) {
+                return _buildSettingsTile(
+                  context,
+                  icon: Icons.verified_rounded,
+                  title: 'Premium Active',
+                  subtitle: 'Ad-free experience unlocked for lifetime',
+                  iconColor: Colors.amber,
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'PRO',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  onTap: () {},
+                );
+              }
+
+              return Column(
+                children: [
+                  _buildSettingsTile(
+                    context,
+                    icon: Icons.diamond_outlined,
+                    title: 'Remove Ads',
+                    subtitle: 'Upgrade to Google Play Ad-Free Pro',
+                    iconColor: Colors.purpleAccent,
+                    onTap: () {
+                      _showPurchaseSheet(context);
+                    },
+                  ),
+                  _buildSettingsTile(
+                    context,
+                    icon: Icons.restore_rounded,
+                    title: 'Restore Purchases',
+                    subtitle: 'Restore previous Google Play purchases',
+                    iconColor: Colors.teal,
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Checking Google Play for previous purchases...')),
+                      );
+                      await BillingService.restorePurchases();
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const Gap(20),
+
+          // Section: Support
+          _buildSectionHeader('Support'),
+          _buildSettingsTile(
+            context,
+            icon: Icons.star_outline_rounded,
+            title: 'Rate Us',
+            subtitle: 'Love SnapSweep? Leave a review!',
+            iconColor: Colors.orange,
+            onTap: () async {
+              final Uri playStoreUri = Uri.parse(
+                'https://play.google.com/store/apps/details?id=com.yousful.snapsweep',
+              );
+              try {
+                if (await canLaunchUrl(playStoreUri)) {
+                  await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+                }
+              } catch (_) {}
+            },
+          ),
+
+          _buildSettingsTile(
+            context,
+            icon: Icons.share_outlined,
+            title: 'Share App',
+            subtitle: 'Share SnapSweep with friends and family',
+            iconColor: Colors.blue,
+            onTap: () async {
+              try {
+                await Share.share(
+                  'Check out SnapSweep! A smart, ultra-fast gallery cleaner for Android. Download now: https://play.google.com/store/apps/details?id=com.yousful.snapsweep',
+                );
+              } catch (e) {
+                debugPrint('Share Error: $e');
+              }
+            },
+          ),
+
+          const Gap(20),
+
+          // Section: About
+          _buildSectionHeader('About'),
+          _buildSettingsTile(
+            context,
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            iconColor: Colors.green,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LegalScreen(
+                    title: 'Privacy Policy',
+                    content: LegalContent.privacyPolicy,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildSettingsTile(
+            context,
+            icon: Icons.description_outlined,
+            title: 'Terms of Service',
+            iconColor: Colors.indigo,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LegalScreen(
+                    title: 'Terms of Service',
+                    content: LegalContent.termsOfService,
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const Gap(30),
+
+          // App Version
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'SnapSweep',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Gap(4),
+                Text(
+                  'Version 1.0.3 (Build 4)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Gap(40),
+        ],
       ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 12,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -203,15 +237,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? subtitle,
     required Color iconColor,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final theme = Theme.of(context);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[900] : Colors.grey[50],
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.grey[800]! : Colors.grey[200]!),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -225,10 +262,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
+                    color: iconColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: iconColor, size: 24),
+                  child: Icon(icon, color: iconColor, size: 22),
                 ),
                 const Gap(16),
                 Expanded(
@@ -238,9 +275,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         title,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       if (subtitle != null) ...[
@@ -249,19 +286,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           subtitle,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: Colors.grey[400]),
+                trailing ?? Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant, size: 20),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  void _showPurchaseSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Gap(20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purpleAccent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.diamond_rounded, color: Colors.purpleAccent, size: 36),
+                ),
+                const Gap(16),
+                Text(
+                  'Upgrade to SnapSweep Pro',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const Gap(6),
+                Text(
+                  'Permanent Ad-Free Experience via Google Play',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                ),
+                const Gap(20),
+                _buildBenefitRow(context, Icons.block_rounded, '100% Ad-Free across all screens'),
+                const Gap(10),
+                _buildBenefitRow(context, Icons.speed_rounded, 'Priority background scanner engine'),
+                const Gap(10),
+                _buildBenefitRow(context, Icons.cloud_done_rounded, 'Permanent lifetime license linked to Google account'),
+                const Gap(24),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.pop(context);
+                    final success = await BillingService.buyRemoveAds();
+                    if (!success) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Starting Google Play billing...')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.lock_open_rounded),
+                  label: const Text('Unlock with Google Play', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBenefitRow(BuildContext context, IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primary, size: 20),
+        const Gap(12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -283,18 +413,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                   const Gap(20),
                   Text(
-                    "Choose Theme",
+                    'Choose Theme',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                   ),
-                  const Gap(20),
+                  const Gap(16),
                   RadioGroup<ThemeMode>(
                     groupValue: themeProvider.themeMode,
                     onChanged: (value) {
@@ -307,15 +437,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: const [
                         RadioListTile<ThemeMode>(
-                          title: Text("System Default"),
+                          title: Text('System Default'),
                           value: ThemeMode.system,
                         ),
                         RadioListTile<ThemeMode>(
-                          title: Text("Light Mode"),
+                          title: Text('Light Mode'),
                           value: ThemeMode.light,
                         ),
                         RadioListTile<ThemeMode>(
-                          title: Text("Dark Mode"),
+                          title: Text('Dark Mode'),
                           value: ThemeMode.dark,
                         ),
                       ],
@@ -328,16 +458,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         );
       },
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text("Coming Soon!"),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
     );
   }
 }

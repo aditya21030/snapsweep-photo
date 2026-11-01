@@ -133,7 +133,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                   Text(
                     "SnapSweep needs access to your gallery to find duplicate copies, blurry shots, and organize categories.",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.secondary,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.4,
                         ),
                     textAlign: TextAlign.center,
@@ -187,9 +187,9 @@ class _PermissionScreenState extends State<PermissionScreen> {
                     ),
                   ),
                   const Gap(12),
-                  const Text(
+                  Text(
                     "All processing is done completely offline on your device.",
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -221,7 +221,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
             ],
           ),
         ),

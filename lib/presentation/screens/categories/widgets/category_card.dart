@@ -61,7 +61,7 @@ class CategoryCard extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: Material(
-            color: Colors.grey[200],
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: InkWell(
               onTap: () {
                 HapticFeedback.selectionClick();

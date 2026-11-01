@@ -1,5 +1,6 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart';
+import 'billing_service.dart';
 
 class AdService {
   // Official Google AdMob Android test ad unit ID for development, production ID for release
@@ -47,6 +48,12 @@ class AdService {
 
   /// Shows the interstitial ad if it's loaded.
   static void showInterstitialAd({VoidCallback? onAdDismissed}) {
+    // If user has purchased ad-free / premium via Google Play, skip ads
+    if (BillingService.isPremium) {
+      onAdDismissed?.call();
+      return;
+    }
+
     if (_interstitialAd == null) {
       onAdDismissed?.call();
       loadInterstitialAd(); // Load for next time

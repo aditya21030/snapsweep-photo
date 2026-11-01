@@ -96,7 +96,7 @@ class CategoriesScreen extends StatelessWidget {
                                     ? '$totalCategorizedCount items   ${AppUtils.formatBytes(totalCategorizedBytes)} organized'
                                     : '$totalCategorizedCount items organized',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: AppColors.secondary,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     ),
                               ),
                             ],

@@ -33,29 +33,30 @@ extension ScanScopeLabel on ScanScope {
 
 class ScanResult {
   final List<AssetEntity> screenshots;
+  final Map<String, String> assetAlbumMap;
   final String debugInfo;
-  
-  ScanResult(this.screenshots, this.debugInfo);
+
+  ScanResult(this.screenshots, this.assetAlbumMap, this.debugInfo);
 }
 
 class MediaService {
   Future<ScanResult> fetchAllAssets({ScanScope scope = ScanScope.screenshots}) async {
     StringBuffer log = StringBuffer();
-    
+
     // Request permission for both photos & videos
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     log.writeln('Auth: ${ps.isAuth}, State: ${ps.name}');
-    
+
     if (!ps.isAuth && ps != PermissionState.limited) {
-       return ScanResult([], log.toString());
+      return ScanResult([], {}, log.toString());
     }
-    
+
     // Determine request type
     final reqType = scope == ScanScope.videos
         ? RequestType.video
         : (scope == ScanScope.fullGallery ? RequestType.common : RequestType.image);
 
-    // Get albums
+    // Get all albums (both Recent and specific folders like Camera, Screenshots, WhatsApp, etc.)
     List<AssetPathEntity> albums = await PhotoManager.getAssetPathList(
       type: reqType,
       filterOption: FilterOptionGroup(
@@ -67,35 +68,55 @@ class MediaService {
         ),
       ),
     );
-    
+
     log.writeln('Albums found: ${albums.length}');
-    
+
     List<AssetEntity> allAssets = [];
     Set<String> processedIds = {};
+    Map<String, String> assetAlbumMap = {};
 
+    // 1. First fetch master assets from the "Recent" / "All" album
+    AssetPathEntity? recentAlbum;
     for (final album in albums) {
-      final count = await album.assetCountAsync;
-      if (count == 0) continue;
-      
-      // Fetch up to 10k items
-      int limit = count > 10000 ? 10000 : count;
-      List<AssetEntity> items = await album.getAssetListRange(start: 0, end: limit);
-      
-      for (var asset in items) {
-        if (_matchesScope(asset, scope) && !processedIds.contains(asset.id)) {
-          allAssets.add(asset);
-          processedIds.add(asset.id);
-        }
-      }
-      
-      // If we got assets from Recents/First album and it's fullGallery or screenshots, we have what we need
-      if (allAssets.isNotEmpty && (scope == ScanScope.fullGallery || scope == ScanScope.camera)) {
+      if (album.isAll) {
+        recentAlbum = album;
         break;
       }
     }
 
-    log.writeln('Found ${allAssets.length} items for scope ${scope.label}.');
-    return ScanResult(allAssets, log.toString());
+    if (recentAlbum != null) {
+      final count = await recentAlbum.assetCountAsync;
+      final limit = count > 15000 ? 15000 : count;
+      final items = await recentAlbum.getAssetListRange(start: 0, end: limit);
+      for (var asset in items) {
+        if (_matchesScope(asset, scope, null) && !processedIds.contains(asset.id)) {
+          allAssets.add(asset);
+          processedIds.add(asset.id);
+        }
+      }
+    }
+
+    // 2. Iterate specific folder albums to record authoritative Android bucket names
+    for (final album in albums) {
+      if (album.isAll) continue;
+      final count = await album.assetCountAsync;
+      if (count == 0) continue;
+
+      final limit = count > 10000 ? 10000 : count;
+      final items = await album.getAssetListRange(start: 0, end: limit);
+
+      for (var asset in items) {
+        assetAlbumMap[asset.id] = album.name;
+        // If recentAlbum was null, also collect here
+        if (recentAlbum == null && _matchesScope(asset, scope, album.name) && !processedIds.contains(asset.id)) {
+          allAssets.add(asset);
+          processedIds.add(asset.id);
+        }
+      }
+    }
+
+    log.writeln('Found ${allAssets.length} items for scope ${scope.label}. Mapped ${assetAlbumMap.length} to albums.');
+    return ScanResult(allAssets, assetAlbumMap, log.toString());
   }
 
   Future<List<AssetEntity>> fetchVideos({int limit = 100}) async {
@@ -132,11 +153,11 @@ class MediaService {
     return allVideos;
   }
 
-  bool _matchesScope(AssetEntity asset, ScanScope scope) {
+  bool _matchesScope(AssetEntity asset, ScanScope scope, String? albumName) {
     if (scope == ScanScope.fullGallery) return true;
     if (scope == ScanScope.videos) return asset.type == AssetType.video;
 
-    final searchable = '${asset.title ?? ''} ${asset.relativePath ?? ''}'.toLowerCase();
+    final searchable = '${asset.title ?? ''} ${asset.relativePath ?? ''} ${albumName ?? ''}'.toLowerCase();
     switch (scope) {
       case ScanScope.screenshots:
         return searchable.contains('screenshot') ||

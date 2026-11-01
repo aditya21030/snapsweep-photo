@@ -84,7 +84,7 @@ class _HeaderSection extends StatelessWidget {
                       ? 'Scanning ${data.scope.label.toLowerCase()}...'
                       : '${data.count} items found | ${data.size}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.secondary,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -103,7 +103,7 @@ class _HeaderSection extends StatelessWidget {
                         avatar: Icon(
                           scope.icon,
                           size: 16,
-                          color: isSelected ? Colors.white : AppColors.secondary,
+                          color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
                         ),
                         label: Text(scope.label),
                         selected: isSelected,
@@ -183,7 +183,7 @@ class _ProgressSection extends StatelessWidget {
                            if (data.statusMessage.isNotEmpty)
                              Text(
                                data.statusMessage,
-                               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.secondary),
+                               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                              ),
                          ],
                        ),
