@@ -578,23 +578,23 @@ class _DashboardSection extends StatelessWidget {
             ),
             const Gap(14),
             DashboardCard(
-              title: AppStrings.cardSimilar,
-              count: provider.isLoading ? 'Scanning...' : '${provider.totalSimilarCount} similar photos',
+              title: 'Burst & Best Shot Selector',
+              count: provider.isLoading ? 'Scanning...' : '${provider.similarGroups.length} burst clusters',
               size: provider.isLoading ? '-' : '${provider.formattedSimilarSize} to review',
-              icon: Icons.layers_outlined,
-              startColor: AppColors.similarCardStart,
-              endColor: AppColors.similarCardEnd, 
+              icon: Icons.burst_mode_rounded,
+              startColor: const Color(0xFFF2994A),
+              endColor: const Color(0xFFF2C94C), 
               previewImages: provider.isLoading ? null : similarPreviews,
               onTap: () {
                 if (provider.similarGroups.isNotEmpty) {
-                  context.push('/similar');
+                  context.push('/burst-cleaner');
                 } else if (provider.isLoading) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Analyzing burst and similar shots... ready shortly.')),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No visually similar photos found in this scan area.')),
+                    const SnackBar(content: Text('No burst sequences found in this scan area.')),
                   );
                 }
               },
@@ -677,6 +677,40 @@ class _DashboardSection extends StatelessWidget {
               previewImages: provider.largeVideos.take(4).toList(),
               onTap: () {
                 context.push('/media-compressor');
+              },
+            ),
+            const Gap(14),
+            DashboardCard(
+              title: 'Screenshot Expiry Cleaner',
+              count: provider.isLoading && (provider.categories['Screenshots']?.isEmpty ?? true)
+                  ? 'Scanning...'
+                  : '${(provider.categories['Screenshots'] ?? []).length} screenshots',
+              size: provider.isLoading && (provider.categories['Screenshots']?.isEmpty ?? true)
+                  ? '-'
+                  : '${provider.getFormattedCategorySize('Screenshots')} to review',
+              icon: Icons.screenshot_rounded,
+              startColor: const Color(0xFF2F80ED),
+              endColor: const Color(0xFF56CCF2),
+              previewImages: (provider.categories['Screenshots'] ?? []).take(4).toList(),
+              onTap: () {
+                context.push('/screenshot-cleaner');
+              },
+            ),
+            const Gap(14),
+            DashboardCard(
+              title: 'Storage Time Machine',
+              count: provider.isLoading && provider.allScreenshots.isEmpty
+                  ? 'Scanning...'
+                  : 'Monthly History & Peaks',
+              size: provider.isLoading && provider.allScreenshots.isEmpty
+                  ? '-'
+                  : '${provider.formattedTotalSize} timeline',
+              icon: Icons.history_toggle_off_rounded,
+              startColor: const Color(0xFF654EA3),
+              endColor: const Color(0xFFEAAFC8),
+              previewImages: provider.allScreenshots.take(4).toList(),
+              onTap: () {
+                context.push('/storage-timeline');
               },
             ),
           ],

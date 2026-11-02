@@ -137,6 +137,8 @@ class CategoriesScreen extends StatelessWidget {
                         onTap: () {
                           if (categoryName == 'Social & WhatsApp') {
                             context.push('/messaging-cleaner');
+                          } else if (categoryName == 'Screenshots') {
+                            context.push('/screenshot-cleaner');
                           } else {
                             context.push(
                               '/category-cleaner',

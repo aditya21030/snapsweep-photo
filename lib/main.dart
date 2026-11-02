@@ -14,6 +14,10 @@ import 'presentation/screens/settings/legal_screen.dart';
 import 'presentation/screens/cleaner/messaging_cleaner_screen.dart';
 import 'presentation/screens/compressor/media_compressor_screen.dart';
 import 'presentation/screens/cleaner/smart_clean_preview_screen.dart';
+import 'presentation/screens/burst/burst_cleaner_screen.dart';
+import 'presentation/screens/cleaner/screenshot_cleaner_screen.dart';
+import 'presentation/screens/timeline/timeline_cleaner_screen.dart';
+import 'package:home_widget/home_widget.dart';
 
 import 'presentation/screens/categories/category_cleaner_screen.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +78,18 @@ final _router = GoRouter(
       builder: (context, state) => const SwipeCleanerScreen(),
     ),
     GoRoute(
+      path: '/burst-cleaner',
+      builder: (context, state) => const BurstCleanerScreen(),
+    ),
+    GoRoute(
+      path: '/screenshot-cleaner',
+      builder: (context, state) => const ScreenshotCleanerScreen(),
+    ),
+    GoRoute(
+      path: '/storage-timeline',
+      builder: (context, state) => const TimelineCleanerScreen(),
+    ),
+    GoRoute(
       path: '/messaging-cleaner',
       builder: (context, state) => const MessagingCleanerScreen(),
     ),
@@ -127,8 +143,39 @@ final _router = GoRouter(
   ],
 );
 
-class SnapSweepApp extends StatelessWidget {
+class SnapSweepApp extends StatefulWidget {
   const SnapSweepApp({super.key});
+
+  @override
+  State<SnapSweepApp> createState() => _SnapSweepAppState();
+}
+
+class _SnapSweepAppState extends State<SnapSweepApp> {
+  @override
+  void initState() {
+    super.initState();
+    _handleWidgetLaunch();
+  }
+
+  void _handleWidgetLaunch() {
+    HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
+      if (uri != null) _navigateForUri(uri);
+    });
+
+    HomeWidget.widgetClicked.listen((uri) {
+      if (uri != null) _navigateForUri(uri);
+    });
+  }
+
+  void _navigateForUri(Uri uri) {
+    final host = uri.host;
+    final path = uri.path;
+    if (host == 'clean' || path.contains('clean')) {
+      _router.push('/smart-clean');
+    } else if (host == 'swipe' || path.contains('swipe')) {
+      _router.push('/swipe-clean');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

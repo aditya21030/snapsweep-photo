@@ -13,6 +13,7 @@ import '../../data/services/media_service.dart';
 import '../../data/services/categorization_service.dart';
 import '../../core/utils/app_utils.dart';
 import '../../core/services/scanner_isolate.dart';
+import '../../core/services/widget_service.dart';
 
 // Standalone functions for compute
 Future<Map<String, dynamic>> _loadCacheCompute(String path) async {
@@ -817,6 +818,7 @@ class ScanProvider extends ChangeNotifier {
       if (_scanSessionId == mySessionId) {
         _isLoading = false;
         _finishProgress();
+        unawaited(WidgetService.syncWithProvider(this));
       }
     }
   }
@@ -988,6 +990,7 @@ class ScanProvider extends ChangeNotifier {
     _recalculateCategorySizes();
     notifyListeners();
     unawaited(_saveCache());
+    unawaited(WidgetService.syncWithProvider(this));
   }
 
   Future<void> forceRescan() async {
