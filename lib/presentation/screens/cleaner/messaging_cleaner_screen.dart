@@ -46,8 +46,34 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
   String _sortOption = 'size'; // 'size' or 'date'
 
   bool _isSentMedia(AssetEntity asset, Map<String, String> albumMap) {
-    final path = '${asset.relativePath ?? ''} ${albumMap[asset.id] ?? ''} ${asset.title ?? ''}'.toLowerCase();
-    return path.contains('sent') || path.contains('/sent/') || path.contains('sent images') || path.contains('sent video');
+    final album = (albumMap[asset.id] ?? '').toLowerCase();
+    final relPath = (asset.relativePath ?? '').toLowerCase();
+
+    // Check direct album name conventions
+    if (album == 'sent' ||
+        album.endsWith('/sent') ||
+        album.endsWith('\\sent') ||
+        album.contains('/sent/') ||
+        album.contains('\\sent\\') ||
+        album.contains('sent images') ||
+        album.contains('sent video') ||
+        album.contains('sent animated')) {
+      return true;
+    }
+
+    // Check relative directory path conventions
+    if (relPath.contains('/sent/') ||
+        relPath.contains('\\sent\\') ||
+        relPath.endsWith('/sent') ||
+        relPath.endsWith('\\sent') ||
+        relPath.startsWith('sent/') ||
+        relPath.startsWith('sent\\')) {
+      return true;
+    }
+
+    // Match discrete folder token "sent" while avoiding false positives like "presentation" or "present"
+    final folderPattern = RegExp(r'(^|[\\/_\s])sent([\\/_\s]|$)', caseSensitive: false);
+    return folderPattern.hasMatch(album) || folderPattern.hasMatch(relPath);
   }
 
   List<AssetEntity> _filterAssets(
@@ -352,9 +378,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 visualDensity: VisualDensity.compact,
                               ),
-                              onPressed: () {
-                                _deleteSelected(sentAssets.map((a) => a.id).toList());
-                              },
+                              onPressed: _isProcessing
+                                  ? null
+                                  : () => _deleteSelected(sentAssets.map((a) => a.id).toList()),
                               child: const Text('Clean Sent', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
                           ],

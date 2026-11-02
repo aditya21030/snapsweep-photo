@@ -83,7 +83,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
         final count = await provider.smartClean(specificIds: _selectedIds.toList());
         if (mounted && count > 0) {
           setState(() {
-            _selectedIds.clear();
+            _selectedIds.retainWhere((id) => provider.allScreenshots.any((a) => a.id == id));
             _cachedDisplayAssets = null;
             _lastRawAssets = null;
           });

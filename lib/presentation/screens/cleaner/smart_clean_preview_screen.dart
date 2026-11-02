@@ -24,6 +24,7 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final provider = context.read<ScanProvider>();
       setState(() {
         for (var asset in provider.smartCleanCandidates) {

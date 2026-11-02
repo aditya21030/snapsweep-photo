@@ -28,6 +28,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final provider = context.read<ScanProvider>();
       final groups = widget.isSimilar ? provider.similarGroups : provider.duplicateGroups;
 
@@ -99,7 +100,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
               await context.read<ScanProvider>().removeAssets(result);
 
               setState(() {
-                _selectedIds.clear();
+                _selectedIds.removeWhere((id) => result.contains(id));
                 _cachedSortedGroups = null;
                 _lastRawGroups = null;
               });

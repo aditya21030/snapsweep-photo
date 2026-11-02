@@ -554,6 +554,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
         setState(() {
           _trashQueue.removeWhere((a) => result.contains(a.id));
           _activeAssets.removeWhere((a) => result.contains(a.id));
+          _history.removeWhere((entry) => result.contains(entry.asset.id));
           if (_currentIndex > _activeAssets.length) {
             _currentIndex = _activeAssets.length;
           }

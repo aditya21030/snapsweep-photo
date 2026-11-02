@@ -9,6 +9,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vidsqueeze/vidsqueeze.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../providers/scan_provider.dart';
 
@@ -28,6 +29,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   AssetEntity? _selectedAsset;
   CompressionPreset _selectedPreset = CompressionPreset.balanced;
   bool _replaceOriginal = true;
+  int? _resolvedOriginalBytes;
 
   // Active Compression State
   bool _isCompressing = false;
@@ -44,6 +46,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   void initState() {
     super.initState();
     _selectedAsset = widget.initialAsset;
+    if (_selectedAsset != null) {
+      _resolveAssetSize(_selectedAsset!);
+    }
 
     _stateSub = Vidsqueeze.instance.states().listen((state) {
       if (_activeTaskId != null && state.taskId == _activeTaskId) {
@@ -58,9 +63,24 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     });
   }
 
+  void _resolveAssetSize(AssetEntity asset) async {
+    try {
+      final file = await asset.file;
+      if (file != null && await file.exists()) {
+        final len = await file.length();
+        if (mounted && len > 0) {
+          setState(() => _resolvedOriginalBytes = len);
+        }
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _stateSub?.cancel();
+    if (_isCompressing && _activeTaskId != null) {
+      Vidsqueeze.instance.cancel(_activeTaskId!);
+    }
     _previewController?.dispose();
     super.dispose();
   }
@@ -91,6 +111,16 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not access original video file.')),
+        );
+      }
+      return;
+    }
+
+    final fileLength = await file.length();
+    if (fileLength <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Selected video file is empty or corrupted.')),
         );
       }
       return;
@@ -136,9 +166,16 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
 
         final outputFile = File(result.outputPath);
         if (await outputFile.exists()) {
-          final controller = VideoPlayerController.file(outputFile);
-          await controller.initialize();
-          controller.setLooping(true);
+          VideoPlayerController? controller;
+          try {
+            controller = VideoPlayerController.file(outputFile);
+            await controller.initialize();
+            controller.setLooping(true);
+          } catch (playerErr) {
+            debugPrint('[Preview Player Init Error] $playerErr');
+            controller?.dispose();
+            controller = null;
+          }
 
           setState(() {
             _lastResult = result;
@@ -146,10 +183,8 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             _previewController = controller;
           });
 
-          // Auto-replace original if chosen
-          if (_replaceOriginal) {
-            await _finalizeAndSave(result, asset);
-          }
+          // Always finalize and save result to gallery
+          await _finalizeAndSave(result, asset);
         }
       } else {
         setState(() {
@@ -204,27 +239,99 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         title: 'compressed_${original.title ?? "video.mp4"}',
       );
 
-      if (mounted) {
-        // 2. Safely move original large video to Trash
-        final List<String> deleted = await PhotoManager.editor.deleteWithIds([original.id]);
-        if (deleted.isNotEmpty && mounted) {
-          await context.read<ScanProvider>().removeAssets(deleted);
-          if (!mounted) return;
+      // Clean up temp file from app cache
+      try {
+        if (await outputFile.exists()) {
+          await outputFile.delete();
+        }
+      } catch (_) {}
+
+      if (!mounted) return;
+
+      if (_replaceOriginal) {
+        final bool isSmaller = !result.usedOriginalSource && result.outputSizeBytes < result.sourceSizeBytes;
+        if (!isSmaller) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Original moved to Trash! Saved ${AppUtils.formatBytes(result.sourceSizeBytes - result.outputSizeBytes)}',
-              ),
+            const SnackBar(
+              content: Text('Original video was already optimal. Original file kept in gallery.'),
               behavior: SnackBarBehavior.floating,
             ),
           );
+        } else {
+          // 2. Safely move original large video to Trash
+          final List<String> deleted = await PhotoManager.editor.deleteWithIds([original.id]);
+          if (deleted.isNotEmpty && mounted) {
+            await context.read<ScanProvider>().removeAssets(deleted);
+            if (!mounted) return;
+            final savedBytes = result.sourceSizeBytes - result.outputSizeBytes;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Original moved to Trash! Saved ${AppUtils.formatBytes(savedBytes)}',
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Compressed copy saved to Gallery! Original kept.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
       debugPrint('[Compressor Save Error] $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save compressed video: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSavingToGallery = false);
     }
+  }
+
+  Future<bool> _handleWillPop() async {
+    if (_isCompressing) {
+      final shouldLeave = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cancel Compression?'),
+          content: const Text('A video is currently being compressed. Exiting will cancel this operation.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Stay'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Cancel & Leave'),
+            ),
+          ],
+        ),
+      );
+      if (shouldLeave == true) {
+        await _cancelCompression();
+        return true;
+      }
+      return false;
+    }
+
+    if (widget.initialAsset == null && _selectedAsset != null) {
+      setState(() {
+        _selectedAsset = null;
+        _resolvedOriginalBytes = null;
+        _lastResult = null;
+        _previewController?.dispose();
+        _previewController = null;
+      });
+      return false;
+    }
+    return true;
   }
 
   @override
@@ -236,13 +343,34 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Compress & Save'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final canLeave = await _handleWillPop();
+        if (canLeave && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Compress & Save'),
+          leading: (widget.initialAsset == null && _selectedAsset != null)
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () async {
+                    final canLeave = await _handleWillPop();
+                    if (canLeave && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                )
+              : null,
+        ),
+        body: _selectedAsset == null
+            ? _buildVideoPickerList(largeVideos, sizes, theme, isDark)
+            : _buildCompressionWorkflow(_selectedAsset!, sizes, theme, isDark),
       ),
-      body: _selectedAsset == null
-          ? _buildVideoPickerList(largeVideos, sizes, theme, isDark)
-          : _buildCompressionWorkflow(_selectedAsset!, sizes, theme, isDark),
     );
   }
 
@@ -357,10 +485,14 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                     HapticFeedback.selectionClick();
                     setState(() {
                       _selectedAsset = video;
+                      _resolvedOriginalBytes = size > 0 ? size : null;
                       _lastResult = null;
                       _previewController?.dispose();
                       _previewController = null;
                     });
+                    if (size == 0) {
+                      _resolveAssetSize(video);
+                    }
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -451,7 +583,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     ThemeData theme,
     bool isDark,
   ) {
-    final originalBytes = sizes[asset.id] ?? 0;
+    final originalBytes = _resolvedOriginalBytes ?? sizes[asset.id] ?? 0;
     final savingsRatio = _getProjectedSavingsRatio(_selectedPreset);
     final projectedBytes = (originalBytes * (1 - savingsRatio)).toInt();
     final estimatedSavingsBytes = (originalBytes * savingsRatio).toInt();
@@ -600,7 +732,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                     const Gap(8),
                     Text(
                       _lastResult != null
-                          ? 'Saved ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} (${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%)'
+                          ? (_lastResult!.sourceSizeBytes > 0 && _lastResult!.outputSizeBytes < _lastResult!.sourceSizeBytes
+                              ? 'Saved ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} (${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%)'
+                              : 'Original was already optimal size')
                           : 'Save ~${AppUtils.formatBytes(estimatedSavingsBytes)} (${(savingsRatio * 100).toInt()}% reduction)',
                       style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
                     ),

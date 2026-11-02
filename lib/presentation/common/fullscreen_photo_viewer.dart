@@ -274,6 +274,9 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> with Widg
                         tooltip: 'Compress Video',
                         onPressed: () {
                           HapticFeedback.selectionClick();
+                          if (_videoController != null && _videoController!.value.isPlaying) {
+                            _videoController!.pause();
+                          }
                           context.push('/media-compressor', extra: widget.asset);
                         },
                       ),
