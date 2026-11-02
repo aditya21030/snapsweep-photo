@@ -12,6 +12,7 @@ import 'presentation/screens/swipe/swipe_cleaner_screen.dart';
 import 'presentation/screens/preview/duplicate_preview_screen.dart';
 import 'presentation/screens/settings/legal_screen.dart';
 import 'presentation/screens/cleaner/messaging_cleaner_screen.dart';
+import 'presentation/screens/compressor/media_compressor_screen.dart';
 import 'presentation/screens/cleaner/smart_clean_preview_screen.dart';
 
 import 'presentation/screens/categories/category_cleaner_screen.dart';
@@ -75,6 +76,13 @@ final _router = GoRouter(
     GoRoute(
       path: '/messaging-cleaner',
       builder: (context, state) => const MessagingCleanerScreen(),
+    ),
+    GoRoute(
+      path: '/media-compressor',
+      builder: (context, state) {
+        final asset = state.extra as AssetEntity?;
+        return MediaCompressorScreen(initialAsset: asset);
+      },
     ),
     GoRoute(
       path: '/large-videos',

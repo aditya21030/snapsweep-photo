@@ -662,6 +662,23 @@ class _DashboardSection extends StatelessWidget {
                 context.push('/messaging-cleaner');
               },
             ),
+            const Gap(14),
+            DashboardCard(
+              title: 'Compress & Save',
+              count: provider.isLoading && provider.largeVideos.isEmpty
+                  ? 'Scanning...'
+                  : '${provider.largeVideos.length} heavy videos',
+              size: provider.isLoading && provider.largeVideos.isEmpty
+                  ? '-'
+                  : 'Save up to 80% space',
+              icon: Icons.compress_rounded,
+              startColor: const Color(0xFF8E2DE2),
+              endColor: const Color(0xFF4A00E0),
+              previewImages: provider.largeVideos.take(4).toList(),
+              onTap: () {
+                context.push('/media-compressor');
+              },
+            ),
           ],
         );
       },

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:video_player/video_player.dart';
@@ -262,6 +263,21 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> with Widg
                         ],
                       ),
                     ),
+                    if (isVideo) ...[
+                      const Gap(8),
+                      IconButton.filledTonal(
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFF8E2DE2).withValues(alpha: 0.35),
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.compress_rounded, size: 20),
+                        tooltip: 'Compress Video',
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          context.push('/media-compressor', extra: widget.asset);
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
