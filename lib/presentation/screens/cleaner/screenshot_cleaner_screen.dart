@@ -41,6 +41,20 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
   bool _isProcessing = false;
   String _sortOption = 'date_desc'; // 'date_desc', 'date_asc', 'size'
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final screenshots = context.read<ScanProvider>().categories['Screenshots'] ?? [];
+      final now = DateTime.now();
+      final hasOld = screenshots.any((a) => now.difference(a.createDateTime).inDays >= 30);
+      if (!hasOld && screenshots.isNotEmpty) {
+        setState(() => _activeAgeFilter = ScreenshotAgeFilter.allScreenshots);
+      }
+    });
+  }
+
   List<AssetEntity> _filterScreenshots(List<AssetEntity> screenshots, Map<String, int> sizes) {
     final now = DateTime.now();
     List<AssetEntity> filtered = screenshots.where((asset) {
@@ -470,6 +484,17 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                       ),
+                      if (allScreenshots.isNotEmpty && _activeAgeFilter != ScreenshotAgeFilter.allScreenshots) ...[
+                        const Gap(14),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _activeAgeFilter = ScreenshotAgeFilter.allScreenshots);
+                          },
+                          icon: const Icon(Icons.history_rounded, size: 16),
+                          label: const Text('View All Recent Screenshots'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -491,6 +516,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                     final isSelected = _selectedIds.contains(asset.id);
                     final size = sizes[asset.id] ?? 0;
                     final daysOld = now.difference(asset.createDateTime).inDays;
+                    final String ageText = daysOld <= 0
+                        ? 'Today'
+                        : (daysOld == 1 ? '1d ago' : '${daysOld}d ago');
                     final dateStr = DateFormat('MMM d').format(asset.createDateTime);
 
                     return GestureDetector(
@@ -533,7 +561,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '${daysOld}d ago',
+                                ageText,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,

@@ -48,7 +48,9 @@ class TimelineCleanerScreen extends StatelessWidget {
       final year = int.parse(parts[0]);
       final month = int.parse(parts[1]);
       final dt = DateTime(year, month);
-      final label = DateFormat('MMMM yyyy').format(dt);
+      final String label = (year < 2000 || year > DateTime.now().year + 1)
+          ? 'Older / Undated Media'
+          : DateFormat('MMMM yyyy').format(dt);
 
       buckets.add(_MonthlyBucket(
         year: year,

@@ -7,8 +7,10 @@ class WidgetService {
   WidgetService._();
 
   static const String appWidgetProvider = 'SnapSweepWidgetProvider';
+  static String? pendingWidgetRoute;
 
   static Future<void> syncWithProvider(ScanProvider provider) async {
+    if (provider.isLoading) return;
     try {
       final int reclaimableBytes = provider.smartCleanSize + provider.similarSize + provider.blurrySize;
       final int itemCount = provider.totalDuplicateCount + provider.totalSimilarCount + provider.blurryPhotos.length;

@@ -20,6 +20,7 @@ class BurstCleanerScreen extends StatefulWidget {
 class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
+  bool _hasAutoSelected = false;
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
   void _autoSelectInferiorShots() {
     final provider = context.read<ScanProvider>();
     final groups = provider.similarGroups;
+    if (groups.isEmpty) return;
 
     setState(() {
       _selectedIds.clear();
@@ -44,6 +46,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
           }
         }
       }
+      _hasAutoSelected = true;
     });
   }
 
@@ -108,10 +111,6 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
               behavior: SnackBarBehavior.floating,
             ),
           );
-
-          if (context.read<ScanProvider>().similarGroups.isEmpty) {
-            Navigator.pop(context);
-          }
         }
       }
     } catch (e) {
@@ -160,6 +159,14 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     final provider = context.watch<ScanProvider>();
     final groups = provider.similarGroups;
     final sizes = provider.assetSizes;
+
+    if (!_hasAutoSelected && groups.isNotEmpty && _selectedIds.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_hasAutoSelected) {
+          _autoSelectInferiorShots();
+        }
+      });
+    }
 
     int totalInferiorCount = 0;
     int totalRedundantBytes = 0;

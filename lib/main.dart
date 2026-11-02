@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'core/theme/app_theme.dart';
+import 'core/services/widget_service.dart';
 import 'presentation/providers/scan_provider.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/screens/splash/splash_screen.dart';
@@ -151,10 +153,18 @@ class SnapSweepApp extends StatefulWidget {
 }
 
 class _SnapSweepAppState extends State<SnapSweepApp> {
+  StreamSubscription<Uri?>? _widgetSub;
+
   @override
   void initState() {
     super.initState();
     _handleWidgetLaunch();
+  }
+
+  @override
+  void dispose() {
+    _widgetSub?.cancel();
+    super.dispose();
   }
 
   void _handleWidgetLaunch() {
@@ -162,7 +172,7 @@ class _SnapSweepAppState extends State<SnapSweepApp> {
       if (uri != null) _navigateForUri(uri);
     });
 
-    HomeWidget.widgetClicked.listen((uri) {
+    _widgetSub = HomeWidget.widgetClicked.listen((uri) {
       if (uri != null) _navigateForUri(uri);
     });
   }
@@ -170,10 +180,20 @@ class _SnapSweepAppState extends State<SnapSweepApp> {
   void _navigateForUri(Uri uri) {
     final host = uri.host;
     final path = uri.path;
+    String? targetRoute;
     if (host == 'clean' || path.contains('clean')) {
-      _router.push('/smart-clean');
+      targetRoute = '/smart-clean';
     } else if (host == 'swipe' || path.contains('swipe')) {
-      _router.push('/swipe-clean');
+      targetRoute = '/swipe-clean';
+    }
+
+    if (targetRoute != null) {
+      final currentLoc = _router.routerDelegate.currentConfiguration.uri.toString();
+      if (currentLoc == '/' || currentLoc == '/permission') {
+        WidgetService.pendingWidgetRoute = targetRoute;
+      } else {
+        _router.push(targetRoute);
+      }
     }
   }
 
