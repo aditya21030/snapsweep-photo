@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 
 class FloatingNavBar extends StatelessWidget {
   final int currentIndex;
@@ -21,47 +21,38 @@ class FloatingNavBar extends StatelessWidget {
 
     return Container(
       margin: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       height: 68,
       decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF1E1E24) : Colors.white).withValues(alpha: 0.95),
+        color: isDark ? AppColors.ink2 : AppColors.ink,
         borderRadius: BorderRadius.circular(34),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
             blurRadius: 20,
             offset: const Offset(0, 6),
             spreadRadius: 1,
           ),
         ],
         border: Border.all(
-          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
-          width: 0.8,
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
         ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(34),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(context, 0, Icons.auto_awesome_rounded, "Cleaner"),
-                _buildNavItem(context, 1, Icons.style_rounded, "Swipe"),
-                _buildNavItem(context, 2, Icons.grid_view_rounded, "Categories"),
-                _buildNavItem(context, 3, Icons.settings_rounded, "Settings"),
-              ],
-            ),
-          ),
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildNavItem(context, 0, Icons.auto_awesome_rounded, "Cleaner"),
+          _buildNavItem(context, 1, Icons.style_rounded, "Swipe"),
+          _buildNavItem(context, 2, Icons.grid_view_rounded, "Categories"),
+          _buildNavItem(context, 3, Icons.tune_rounded, "Settings"),
+        ],
       ),
     );
   }
 
   Widget _buildNavItem(BuildContext context, int index, IconData icon, String label) {
     final bool isSelected = currentIndex == index;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
       onTap: () {
@@ -72,36 +63,31 @@ class FloatingNavBar extends StatelessWidget {
       },
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 14 : 10,
+          horizontal: isSelected ? 16 : 12,
           vertical: 8,
         ),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
+          color: isSelected ? AppColors.gold : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 22,
-              color: isSelected 
-                  ? AppColors.primary 
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 20,
+              color: isSelected ? AppColors.ink : const Color(0xFFA49EBA),
             ),
             if (isSelected) ...[
-              const Gap(8),
+              const Gap(6),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                style: AppTypography.meta13(
+                  color: AppColors.ink,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

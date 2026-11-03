@@ -20,6 +20,16 @@
 
 ---
 
+### 2. 🎨 "Flat, Solid, Four Colors" Design System (Light & Dark)
+- **Solid 4-Color Palette**: Ink (`#12052D`), Violet (`#6D2DF7`), Gold (`#FCC80E`), and Lavender (`#F6F5FC`) in Light Mode; Ink (`#12052D`), Ink 2 (`#1D0C47`), Violet Deep (`#5F1FEF`), and Gold (`#FCC80E`) in Dark Mode.
+- **Editorial Typography Scale**:
+  - `Bricolage Grotesque` (800 Weight, tight tracking) for bold numbers, metrics, hero headers, and titles (`display68`, `display48`, `title30`, `heading20`).
+  - `DM Sans` (400 to 700 Weight) for clean legible metadata, labels, captions, and action buttons (`body15`, `button15`, `meta13`, `caption11`).
+- **Floating Island Navigation**: Floating pill navigation bar with active solid Gold pill (`#FCC80E`) and dark Ink text/icons across Cleaner, Swipe, Categories, and Settings.
+- **Flat Elevation System**: Zero artificial drop-shadows or gradients; pure solid hierarchy guided by color proportion (Lavender 45%, Ink 25%, Violet 20%, Gold 10%).
+
+---
+
 ### 2. 👯 Exact Duplicates & Safe Smart Clean
 - **100% Bit-for-Bit Matching**: Groups identical copies saved across different folders (e.g. WhatsApp, Camera, Downloads).
 - **Smart Authority Selection**: Automatically preserves the original high-resolution camera capture (`DCIM/Camera`) while pre-selecting redundant downloaded copies for deletion.
@@ -154,7 +164,7 @@ lib/
 ├── core/
 │   ├── constants/       # AppColors, strings, legal policies
 │   ├── services/        # ScannerIsolate (dHash, MD5, blur), WidgetService, AdService, BillingService
-│   ├── theme/           # Material 3 light/dark themes & Outfit typography
+│   ├── theme/           # Solid 4-color themes & Bricolage Grotesque / DM Sans typography
 │   └── utils/           # AppUtils (byte formatting, date helpers)
 ├── data/
 │   └── services/        # MediaService (PhotoManager), CategorizationService (ML Kit + metadata)

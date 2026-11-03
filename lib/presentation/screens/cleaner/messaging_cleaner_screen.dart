@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
@@ -18,17 +20,10 @@ enum MessagingTabFilter {
 
 extension MessagingTabFilterLabel on MessagingTabFilter {
   String get label => switch (this) {
-        MessagingTabFilter.sent => 'Sent Copies',
+        MessagingTabFilter.sent => 'Sent copies',
         MessagingTabFilter.videos => 'Videos',
         MessagingTabFilter.photos => 'Photos',
-        MessagingTabFilter.all => 'All Media',
-      };
-
-  IconData get icon => switch (this) {
-        MessagingTabFilter.sent => Icons.outbox_rounded,
-        MessagingTabFilter.videos => Icons.videocam_rounded,
-        MessagingTabFilter.photos => Icons.photo_rounded,
-        MessagingTabFilter.all => Icons.forum_rounded,
+        MessagingTabFilter.all => 'All media',
       };
 }
 
@@ -71,7 +66,7 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
       return true;
     }
 
-    // Match discrete folder token "sent" while avoiding false positives like "presentation" or "present"
+    // Match discrete folder token "sent"
     final folderPattern = RegExp(r'(^|[\\/_\s])sent([\\/_\s]|$)', caseSensitive: false);
     return folderPattern.hasMatch(album) || folderPattern.hasMatch(relPath);
   }
@@ -117,38 +112,60 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
     if (idsToDelete.isEmpty || _isProcessing) return;
     _isProcessing = true;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+
     try {
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
+                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
+                child: Icon(
+                  Icons.delete_sweep_rounded,
+                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  size: 24,
+                ),
               ),
-              const Gap(12),
-              const Expanded(child: Text('Move to Trash?')),
+              const Gap(14),
+              Expanded(
+                child: Text(
+                  'Move to Trash?',
+                  style: AppTypography.heading20(color: textColor),
+                ),
+              ),
             ],
           ),
           content: Text(
-            '${idsToDelete.length} messaging file(s) will be moved to your device\'s Trash.\n\nYou can restore them within 30 days if needed.',
-            style: const TextStyle(fontSize: 14, height: 1.4),
+            '${idsToDelete.length} messaging file(s) will be moved to device Trash.\n\nYou can restore them within 30 days if needed.',
+            style: AppTypography.body15(color: mutedColor),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: AppTypography.meta13(color: mutedColor)),
             ),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              style: FilledButton.styleFrom(
+                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-              label: const Text('Move to Trash'),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
+              label: Text('Move to Trash', style: AppTypography.button15(color: Colors.white)),
             ),
           ],
         ),
@@ -169,8 +186,13 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Moved $count messaging files to Trash'),
+              backgroundColor: AppColors.ink,
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              content: Text(
+                'Moved $count messaging files to Trash',
+                style: AppTypography.body15(color: Colors.white),
+              ),
             ),
           );
         }
@@ -224,10 +246,7 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
     final sizes = provider.assetSizes;
 
     final displayedAssets = _filterAssets(allSocial, albumMap);
-
     final sentAssets = allSocial.where((a) => _isSentMedia(a, albumMap)).toList();
-    final videoAssets = allSocial.where((a) => a.type == AssetType.video && !_isSentMedia(a, albumMap)).toList();
-    final photoAssets = allSocial.where((a) => a.type == AssetType.image && !_isSentMedia(a, albumMap)).toList();
 
     final totalSocialBytes = _calculateBytes(allSocial, sizes);
     final totalSentBytes = _calculateBytes(sentAssets, sizes);
@@ -237,247 +256,223 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
       selectedBytes += sizes[id] ?? 0;
     }
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
+    final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
+    final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
+
+    final displayedIds = displayedAssets.map((a) => a.id).toSet();
+    final bool allCurrentSelected = displayedIds.isNotEmpty && displayedIds.every((id) => _selectedIds.contains(id));
 
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('WhatsApp & Social Clean'),
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'WhatsApp and social',
+              style: AppTypography.heading20(color: textColor),
+            ),
+            Text(
+              '${allSocial.length} items | ${AppUtils.formatBytes(totalSocialBytes)}',
+              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+            ),
+          ],
+        ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.sort_rounded),
+            icon: Icon(Icons.sort_rounded, color: textColor),
             tooltip: 'Sort items',
+            color: cardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             initialValue: _sortOption,
             onSelected: (val) {
               HapticFeedback.selectionClick();
               setState(() => _sortOption = val);
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'size',
-                child: Row(
-                  children: [
-                    Icon(Icons.storage_rounded, size: 18),
-                    Gap(10),
-                    Text('Largest Size First'),
-                  ],
-                ),
+                child: Text('Largest size first', style: AppTypography.meta13(color: textColor)),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'date',
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today_rounded, size: 18),
-                    Gap(10),
-                    Text('Newest Date First'),
-                  ],
-                ),
+                child: Text('Newest date first', style: AppTypography.meta13(color: textColor)),
               ),
             ],
           ),
+          if (displayedAssets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: lilacChip,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    if (allCurrentSelected) {
+                      _selectedIds.removeAll(displayedIds);
+                    } else {
+                      _selectedIds.addAll(displayedIds);
+                    }
+                  });
+                },
+                child: Text(
+                  allCurrentSelected ? 'Deselect' : 'Select all',
+                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
         ],
       ),
       body: CustomScrollView(
         slivers: [
-          // 1. Overview Storage Banner
+          // Violet Hero Card (Pages 16 & 46)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0F9D58), Color(0xFF00796B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0F9D58).withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: AppColors.violet,
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
+                            color: AppColors.lilac,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.forum_rounded, color: Colors.white, size: 24),
-                        ),
-                        const Gap(12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Messaging Storage',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 17,
-                                ),
-                              ),
-                              Text(
-                                '${allSocial.length} files | ${AppUtils.formatBytes(totalSocialBytes)} occupied',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            'QUICK CLEAN',
+                            style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
                           ),
                         ),
+                        if (sentAssets.isNotEmpty)
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.ink,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _currentFilter = MessagingTabFilter.sent;
+                                _selectedIds.clear();
+                                for (final a in sentAssets) {
+                                  _selectedIds.add(a.id);
+                                }
+                              });
+                            },
+                            child: Text(
+                              'Clean sent copies',
+                              style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 13),
+                            ),
+                          ),
                       ],
                     ),
-
-                    // Quick Clean Sent Copies Recommendation
-                    if (sentAssets.isNotEmpty) ...[
-                      const Gap(16),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.security_rounded, color: Colors.greenAccent, size: 20),
-                            const Gap(10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${sentAssets.length} Sent Copies (${AppUtils.formatBytes(totalSentBytes)})',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const Text(
-                                    'Redundant copies of photos you sent. Safe to clean.',
-                                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            FilledButton.tonal(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF00796B),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              onPressed: _isProcessing
-                                  ? null
-                                  : () => _deleteSelected(sentAssets.map((a) => a.id).toList()),
-                              child: const Text('Clean Sent', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    const Gap(14),
+                    Text(
+                      AppUtils.formatBytes(totalSentBytes),
+                      style: AppTypography.display48(color: Colors.white),
+                    ),
+                    const Gap(6),
+                    Text(
+                      '${sentAssets.length} hidden sent copies from chats you already delivered',
+                      style: AppTypography.body15(color: AppColors.lilac, fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
 
-          // 2. Sub-Category Tabs
+          // Filter Tabs (Sent copies, Videos, Photos, All media)
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 44,
+              height: 42,
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
                 children: [
-                  _buildScopeChip(
-                    tab: MessagingTabFilter.sent,
-                    count: sentAssets.length,
-                    theme: theme,
-                  ),
-                  const Gap(8),
-                  _buildScopeChip(
-                    tab: MessagingTabFilter.videos,
-                    count: videoAssets.length,
-                    theme: theme,
-                  ),
-                  const Gap(8),
-                  _buildScopeChip(
-                    tab: MessagingTabFilter.photos,
-                    count: photoAssets.length,
-                    theme: theme,
-                  ),
-                  const Gap(8),
-                  _buildScopeChip(
-                    tab: MessagingTabFilter.all,
-                    count: allSocial.length,
-                    theme: theme,
-                  ),
+                  for (final tab in MessagingTabFilter.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _currentFilter = tab);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _currentFilter == tab
+                                ? AppColors.violet
+                                : cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            tab.label,
+                            style: AppTypography.meta13(
+                              color: _currentFilter == tab
+                                  ? Colors.white
+                                  : textColor,
+                              fontWeight: _currentFilter == tab ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          // 3. Selection Actions Row
+          // Section Counter Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${displayedAssets.length} ${_currentFilter.label.toLowerCase()}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    '${displayedAssets.length} ${_currentFilter.label.toLowerCase()} found',
+                    style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
                   ),
-                  if (displayedAssets.isNotEmpty)
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          final currentIds = displayedAssets.map((a) => a.id).toSet();
-                          final bool allSelected = currentIds.every((id) => _selectedIds.contains(id));
-                          if (allSelected) {
-                            _selectedIds.removeAll(currentIds);
-                          } else {
-                            _selectedIds.addAll(currentIds);
-                          }
-                        });
-                      },
-                      icon: Icon(
-                        displayedAssets.map((a) => a.id).toSet().every((id) => _selectedIds.contains(id))
-                            ? Icons.deselect_rounded
-                            : Icons.select_all_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        displayedAssets.map((a) => a.id).toSet().every((id) => _selectedIds.contains(id))
-                            ? 'Deselect All'
-                            : 'Select All',
-                      ),
-                    ),
+                  Text(
+                    AppUtils.formatBytes(_calculateBytes(displayedAssets, sizes)),
+                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                  ),
                 ],
               ),
             ),
           ),
 
-          // 4. Grid of Media Assets
+          // Media Grid
           if (displayedAssets.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -490,25 +485,21 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.12),
+                          color: AppColors.gold.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.check_circle_outline_rounded,
-                          color: Colors.green,
-                          size: 48,
-                        ),
+                        child: const Icon(Icons.forum_outlined, size: 48, color: AppColors.gold),
                       ),
                       const Gap(16),
                       Text(
-                        'No ${_currentFilter.label} Found',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        'No Items in ${_currentFilter.label}',
+                        style: AppTypography.title30(color: textColor),
                       ),
                       const Gap(6),
                       Text(
-                        'Your messaging media in this section is completely clean.',
+                        'No messaging media matched this category filter.',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        style: AppTypography.body15(color: mutedColor),
                       ),
                     ],
                   ),
@@ -517,13 +508,13 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             )
           else
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 96 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 120 + MediaQuery.paddingOf(context).bottom),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
-                  childAspectRatio: 0.82,
+                  childAspectRatio: 0.8,
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (ctx, index) {
@@ -531,6 +522,8 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                     final isSelected = _selectedIds.contains(asset.id);
                     final size = sizes[asset.id] ?? 0;
                     final isSent = _isSentMedia(asset, albumMap);
+                    final isVideo = asset.type == AssetType.video;
+                    final dateStr = DateFormat('MMM d').format(asset.createDateTime);
 
                     return GestureDetector(
                       onTap: () {
@@ -543,139 +536,92 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                           }
                         });
                       },
+                      onLongPress: () => _inspectAsset(asset),
                       child: Stack(
-                        fit: StackFit.expand,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: AssetEntityImage(
-                              asset,
-                              isOriginal: false,
-                              thumbnailSize: const ThumbnailSize.square(350),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-
-                          // Selection Highlight Border & Tint
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected ? AppColors.error : Colors.transparent,
-                                width: 2.5,
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: AssetEntityImage(
+                                asset,
+                                isOriginal: false,
+                                thumbnailSize: const ThumbnailSize.square(300),
+                                fit: BoxFit.cover,
                               ),
-                              color: isSelected
-                                  ? AppColors.error.withValues(alpha: 0.22)
-                                  : Colors.transparent,
                             ),
                           ),
 
-                          // Top Badges (Sent badge or Fullscreen button)
-                          Positioned(
-                            top: 6,
-                            left: 6,
-                            child: isSent
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber.shade800,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      'SENT',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: IconButton(
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.black45,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.all(4),
-                                minimumSize: const Size(28, 28),
-                              ),
-                              icon: const Icon(Icons.fullscreen_rounded, size: 16),
-                              onPressed: () => _inspectAsset(asset),
-                              tooltip: 'Inspect',
-                            ),
-                          ),
-
-                          // Bottom Metadata Gradient Bar
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.fromLTRB(6, 12, 6, 6),
-                              decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.8),
-                                    Colors.transparent,
-                                  ],
+                          if (isSelected)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: trashRed, width: 2.5),
+                                  borderRadius: BorderRadius.circular(16),
+                                  color: trashRed.withValues(alpha: 0.32),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  if (size > 0)
-                                    Text(
-                                      AppUtils.formatBytes(size),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                  else
-                                    const SizedBox.shrink(),
-                                  if (asset.type == AssetType.video)
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.play_arrow_rounded, color: Colors.amber, size: 12),
-                                        Text(
-                                          AppUtils.formatDuration(Duration(seconds: asset.duration)),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
+                            ),
+
+                          // Top-Left Sent / Video Pill
+                          if (isSent || isVideo)
+                            Positioned(
+                              top: 6,
+                              left: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.7),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  isSent ? 'Sent' : (isVideo ? 'Video' : ''),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          // Checkbox Top-Right
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: Icon(
+                                isSelected ? Icons.delete_outline_rounded : Icons.circle,
+                                color: isSelected ? Colors.white : Colors.transparent,
+                                size: 12,
                               ),
                             ),
                           ),
 
-                          // Selection Checkmark Circle
+                          // Bottom Pill (Size & Date)
                           Positioned(
-                            bottom: 6,
-                            right: 6,
+                            bottom: 5,
+                            left: 5,
+                            right: 5,
                             child: Container(
-                              padding: const EdgeInsets.all(3),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                               decoration: BoxDecoration(
-                                color: isSelected ? AppColors.error : Colors.black45,
-                                shape: BoxShape.circle,
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              child: Icon(
-                                isSelected ? Icons.check_rounded : Icons.circle_outlined,
-                                color: Colors.white,
-                                size: 14,
+                              child: Text(
+                                '$dateStr | ${AppUtils.formatBytes(size)}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -690,25 +636,14 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
         ],
       ),
 
-      // Bottom Deletion Bar
+      // Sticky Bottom Reclaim Bar
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                16 + MediaQuery.paddingOf(context).bottom,
-              ),
+              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
               decoration: BoxDecoration(
-                color: theme.cardColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
-                  ),
-                ],
+                color: isDark ? AppColors.ink2 : AppColors.ink,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Row(
                 children: [
@@ -718,70 +653,34 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${_selectedIds.length} Selected',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          '${_selectedIds.length} selected',
+                          style: AppTypography.subheading17(color: Colors.white),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
+                          style: AppTypography.meta13(color: AppColors.lilac),
                         ),
                       ],
                     ),
                   ),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.ink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: _isProcessing ? null : () => _deleteSelected(_selectedIds.toList()),
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20),
-                    label: const Text('Move to Trash', style: TextStyle(fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    label: Text(
+                      'Move to Trash',
+                      style: AppTypography.button15(color: AppColors.ink),
+                    ),
                   ),
                 ],
               ),
             ),
-    );
-  }
-
-  Widget _buildScopeChip({
-    required MessagingTabFilter tab,
-    required int count,
-    required ThemeData theme,
-  }) {
-    final isSelected = tab == _currentFilter;
-
-    return ChoiceChip(
-      avatar: Icon(
-        tab.icon,
-        size: 15,
-        color: isSelected ? Colors.white : theme.colorScheme.primary,
-      ),
-      label: Text('${tab.label} ($count)'),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _currentFilter = tab;
-          });
-        }
-      },
-      selectedColor: const Color(0xFF0F9D58),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-        fontSize: 12,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      showCheckmark: false,
     );
   }
 }

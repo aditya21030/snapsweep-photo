@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import 'package:gap/gap.dart';
-import '../../../core/constants/app_strings.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../providers/scan_provider.dart';
 import 'widgets/category_card.dart';
@@ -13,9 +13,20 @@ class CategoriesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text(AppStrings.tabCategories),
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Smart Categories',
+          style: AppTypography.heading20(color: textColor),
+        ),
       ),
       body: Selector<ScanProvider, int>(
         selector: (_, p) => Object.hashAll(
@@ -25,7 +36,7 @@ class CategoriesScreen extends StatelessWidget {
           final provider = context.read<ScanProvider>();
           final categories = provider.categories;
           if (categories.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: AppColors.violet));
           }
 
           // Sort category keys: categories with largest total size / count first
@@ -47,64 +58,43 @@ class CategoriesScreen extends StatelessWidget {
           return CustomScrollView(
             cacheExtent: 2000,
             slivers: [
-              // Summary Header Banner
+              // Summary Header Banner (Pages 22 & 52)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary.withValues(alpha: 0.12),
-                          AppColors.primary.withValues(alpha: 0.04),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
+                      color: isDark ? AppColors.ink2 : AppColors.ink,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome_rounded,
-                            color: AppColors.primary,
-                            size: 24,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.gold,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'ORGANIZED GALLERY',
+                                style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                              ),
+                            ),
+                          ],
                         ),
-                        const Gap(16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${categories.length} Smart Categories',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const Gap(4),
-                              Text(
-                                totalCategorizedBytes > 0
-                                    ? '$totalCategorizedCount items   ${AppUtils.formatBytes(totalCategorizedBytes)} organized'
-                                    : '$totalCategorizedCount items organized',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
-                          ),
+                        const Gap(12),
+                        Text(
+                          '${categories.length} Categories Organized',
+                          style: AppTypography.title30(color: Colors.white),
+                        ),
+                        const Gap(4),
+                        Text(
+                          '$totalCategorizedCount items | ${AppUtils.formatBytes(totalCategorizedBytes)} classified',
+                          style: AppTypography.body15(color: AppColors.lilac),
                         ),
                       ],
                     ),
@@ -114,13 +104,13 @@ class CategoriesScreen extends StatelessWidget {
 
               // Categories Grid
               SliverPadding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, 90 + MediaQuery.paddingOf(context).bottom),
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 100 + MediaQuery.paddingOf(context).bottom),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.9,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.95,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -134,6 +124,7 @@ class CategoriesScreen extends StatelessWidget {
                         count: '${list.length} items',
                         size: sizeStr,
                         thumbnail: thumb,
+                        index: index,
                         onTap: () {
                           if (categoryName == 'Social & WhatsApp') {
                             context.push('/messaging-cleaner');

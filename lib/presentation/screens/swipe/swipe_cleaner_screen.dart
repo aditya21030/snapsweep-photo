@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
@@ -318,96 +319,88 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             return Container(
               height: MediaQuery.of(ctx).size.height * 0.78,
               decoration: BoxDecoration(
-                color: theme.cardColor,
+                color: isDark ? AppColors.ink2 : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 20,
-                    offset: const Offset(0, -4),
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 24,
+                    offset: const Offset(0, -6),
                   ),
                 ],
               ),
               child: SafeArea(
                 child: Column(
                   children: [
-                    // Handle Bar
                     const Gap(12),
                     Container(
                       width: 44,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    const Gap(16),
+                    const Gap(18),
 
-                    // Title & Reclaim Info
+                    // Header (Page 11: TRASH QUEUE | 12 photos | 38 MB to reclaim)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.delete_sweep_rounded,
-                              color: AppColors.error,
-                              size: 24,
-                            ),
-                          ),
-                          const Gap(14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Review Queued Trash',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "TRASH QUEUE",
+                                style: AppTypography.caption11(
+                                  color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                                  letterSpacing: 1.0,
                                 ),
-                                Text(
-                                  '${selectedForDeletion.length} items | Reclaim ${AppUtils.formatBytes(selectedBytes)}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const Gap(4),
+                              Text(
+                                "${selectedForDeletion.length} photos",
+                                style: AppTypography.title30(
+                                  color: isDark ? Colors.white : AppColors.ink,
+                                ).copyWith(fontSize: 24),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () {
-                              setSheetState(() {
-                                if (selectedForDeletion.length == _trashQueue.length) {
-                                  selectedForDeletion.clear();
-                                } else {
-                                  selectedForDeletion.addAll(_trashQueue.map((a) => a.id));
-                                }
-                              });
-                            },
-                            child: Text(
-                              selectedForDeletion.length == _trashQueue.length
-                                  ? 'Deselect All'
-                                  : 'Select All',
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                AppUtils.formatBytes(selectedBytes),
+                                style: AppTypography.title30(
+                                  color: AppColors.violet,
+                                ).copyWith(fontSize: 24),
+                              ),
+                              const Gap(2),
+                              Text(
+                                "to reclaim",
+                                style: AppTypography.meta13(
+                                  color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const Gap(12),
-                    const Divider(height: 1),
+                    const Gap(18),
+                    Divider(
+                      height: 1,
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5),
+                    ),
 
-                    // Grid of Trash Candidates
+                    // 4-Column Grid of Queued Photos (Page 11)
                     Expanded(
                       child: GridView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
+                          crossAxisCount: 4,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),
@@ -416,113 +409,104 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                           final asset = _trashQueue[index];
                           final isSelected = selectedForDeletion.contains(asset.id);
 
-                          return GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setSheetState(() {
-                                if (isSelected) {
-                                  selectedForDeletion.remove(asset.id);
-                                } else {
-                                  selectedForDeletion.add(asset.id);
-                                }
-                              });
-                            },
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: ColorFiltered(
+                                  colorFilter: isSelected
+                                      ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
+                                      : ColorFilter.mode(Colors.black.withValues(alpha: 0.5), BlendMode.darken),
                                   child: AssetEntityImage(
                                     asset,
                                     isOriginal: false,
-                                    thumbnailSize: const ThumbnailSize.square(300),
+                                    thumbnailSize: const ThumbnailSize.square(200),
                                     fit: BoxFit.cover,
                                   ),
                                 ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isSelected ? AppColors.error : Colors.transparent,
-                                      width: 2.5,
-                                    ),
-                                    color: isSelected
-                                        ? AppColors.error.withValues(alpha: 0.2)
-                                        : Colors.black.withValues(alpha: 0.35),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
+                              ),
+                              // Remove from Queue 'X' Button on Top Right
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setSheetState(() {
+                                      if (isSelected) {
+                                        selectedForDeletion.remove(asset.id);
+                                      } else {
+                                        selectedForDeletion.add(asset.id);
+                                      }
+                                    });
+                                  },
                                   child: Container(
-                                    padding: const EdgeInsets.all(4),
+                                    width: 22,
+                                    height: 22,
                                     decoration: BoxDecoration(
-                                      color: isSelected ? AppColors.error : Colors.black54,
+                                      color: isSelected
+                                          ? AppColors.ink.withValues(alpha: 0.8)
+                                          : Colors.grey.withValues(alpha: 0.8),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
-                                      isSelected
-                                          ? Icons.check_rounded
-                                          : Icons.close_rounded,
-                                      color: Colors.white,
+                                      isSelected ? Icons.close_rounded : Icons.add_rounded,
                                       size: 14,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           );
                         },
                       ),
                     ),
 
-                    // Bottom Action Bar
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        border: Border(
-                          top: BorderSide(
-                            color: isDark ? Colors.white10 : Colors.black12,
-                          ),
-                        ),
-                      ),
-                      child: Row(
+                    // Bottom Action Buttons (Page 11)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: AppColors.ink,
+                                elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                              child: const Text('Keep Swiping'),
-                            ),
-                          ),
-                          const Gap(12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.error,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              onPressed: selectedForDeletion.isEmpty || _isProcessingDelete
+                              onPressed: selectedForDeletion.isEmpty
                                   ? null
                                   : () async {
                                       Navigator.pop(ctx);
                                       await _executeTrash(selectedForDeletion.toList());
                                     },
-                              icon: const Icon(Icons.delete_sweep_rounded, size: 20),
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 20,
+                                color: AppColors.ink,
+                              ),
                               label: Text(
-                                'Move ${selectedForDeletion.length} to Trash',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                "Move ${selectedForDeletion.length} to Trash",
+                                style: AppTypography.button15(color: AppColors.ink)
+                                    .copyWith(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                          const Gap(10),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(
+                              "Keep swiping",
+                              style: AppTypography.button15(
+                                color: AppColors.violet,
                               ),
                             ),
                           ),
@@ -650,39 +634,42 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Swipe to Clean',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          'SWIPE TO CLEAN',
+                          style: AppTypography.caption11(
+                            color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                            letterSpacing: 1.0,
                           ),
                         ),
+                        const Gap(2),
                         Text(
                           totalRemaining > 0
-                              ? 'Card ${_currentIndex + 1} of ${_activeAssets.length}'
+                              ? '${_currentIndex + 1} of ${_activeAssets.length}'
                               : 'Deck Completed',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                          style: AppTypography.title30(
+                            color: isDark ? Colors.white : AppColors.ink,
+                          ).copyWith(fontSize: 20),
                         ),
                       ],
                     ),
                   ),
 
-                  // Trash Queue Pill / Button
+                  // Trash Queue Gold Pill (Page 10)
                   if (_trashQueue.isNotEmpty)
-                    FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.error.withValues(alpha: 0.12),
-                        foregroundColor: AppColors.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(
+                    GestureDetector(
+                      onTap: _showReviewBottomSheet,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                      ),
-                      onPressed: _showReviewBottomSheet,
-                      icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-                      label: Text(
-                        '${_trashQueue.length} (${AppUtils.formatBytes(totalTrashBytes)})',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        child: Text(
+                          totalTrashBytes > 0
+                              ? 'Review ${_trashQueue.length} | ${AppUtils.formatBytes(totalTrashBytes)}'
+                              : 'Review ${_trashQueue.length}',
+                          style: AppTypography.button15(color: AppColors.ink)
+                              .copyWith(fontSize: 13),
+                        ),
                       ),
                     ),
                 ],
@@ -701,27 +688,48 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                   final scope = SwipeFilterScope.values[index];
                   final isSelected = scope == _selectedScope;
 
-                  return ChoiceChip(
-                    avatar: Icon(
-                      scope.icon,
-                      size: 15,
-                      color: isSelected ? Colors.white : theme.colorScheme.primary,
-                    ),
-                    label: Text(scope.label),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) _changeScope(scope);
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _changeScope(scope);
                     },
-                    selectedColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : theme.colorScheme.onSurface,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      fontSize: 12,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.violet
+                            : (isDark ? AppColors.ink2 : Colors.white),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.violet
+                              : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            scope.icon,
+                            size: 15,
+                            color: isSelected
+                                ? Colors.white
+                                : (isDark ? AppColors.lilac : AppColors.violet),
+                          ),
+                          const Gap(6),
+                          Text(
+                            scope.label,
+                            style: AppTypography.meta13(
+                              color: isSelected
+                                  ? Colors.white
+                                  : (isDark ? const Color(0xFFA49EBA) : AppColors.ink),
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    showCheckmark: false,
                   );
                 },
               ),
@@ -738,7 +746,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
               ),
             ),
 
-            // Bottom Action Control Row
+            // Bottom Action Control Row (Page 10: Undo, Trash, Skip, Keep)
             if (totalRemaining > 0)
               Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -750,42 +758,46 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Trash / Swipe Left Button
+                    // 1. Undo Button
                     _buildRoundActionButton(
-                      icon: Icons.delete_outline_rounded,
-                      color: AppColors.error,
-                      size: 60,
-                      iconSize: 28,
-                      tooltip: 'Move to Trash (Swipe Left)',
-                      onPressed: () => _triggerSwipe(SwipeAction.trash),
-                    ),
-
-                    // Undo Button
-                    _buildRoundActionButton(
-                      icon: Icons.undo_rounded,
-                      color: Colors.amber.shade700,
-                      size: 48,
+                      icon: Icons.replay_rounded,
+                      bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                      iconColor: isDark ? Colors.white : AppColors.ink,
+                      size: 52,
                       iconSize: 22,
                       tooltip: 'Undo last card',
                       onPressed: _history.isEmpty ? null : _undoLastSwipe,
                     ),
 
-                    // Skip / Swipe Up Button
+                    // 2. Trash Button (Swipe Left)
+                    _buildRoundActionButton(
+                      icon: Icons.close_rounded,
+                      bgColor: AppColors.trashRedLight,
+                      iconColor: Colors.white,
+                      size: 64,
+                      iconSize: 30,
+                      tooltip: 'Move to Trash (Swipe Left)',
+                      onPressed: () => _triggerSwipe(SwipeAction.trash),
+                    ),
+
+                    // 3. Skip Button (Swipe Up)
                     _buildRoundActionButton(
                       icon: Icons.arrow_upward_rounded,
-                      color: Colors.blue.shade600,
-                      size: 48,
+                      bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                      iconColor: isDark ? Colors.white : AppColors.ink,
+                      size: 52,
                       iconSize: 22,
                       tooltip: 'Skip (Swipe Up)',
                       onPressed: () => _triggerSwipe(SwipeAction.skip),
                     ),
 
-                    // Keep / Swipe Right Button
+                    // 4. Keep Button (Swipe Right)
                     _buildRoundActionButton(
                       icon: Icons.check_rounded,
-                      color: Colors.green.shade600,
-                      size: 60,
-                      iconSize: 30,
+                      bgColor: AppColors.gold,
+                      iconColor: AppColors.ink,
+                      size: 64,
+                      iconSize: 32,
                       tooltip: 'Keep Photo (Swipe Right)',
                       onPressed: () => _triggerSwipe(SwipeAction.keep),
                     ),
@@ -890,7 +902,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             children: [
               _buildCardContent(asset, theme, isDark, provider, isBackground: false),
 
-              // Interactive Action Badges
+              // Interactive Action Badges (Page 10: TRASH in Red, KEEP in Gold)
               if (trashProgress > 0.05)
                 Positioned(
                   top: 24,
@@ -899,8 +911,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     opacity: trashProgress,
                     child: _buildActionBadge(
                       label: 'TRASH',
-                      color: AppColors.error,
-                      icon: Icons.delete_outline_rounded,
+                      bgColor: AppColors.trashRedLight,
+                      textColor: Colors.white,
+                      icon: Icons.close_rounded,
                       angle: 0.15,
                     ),
                   ),
@@ -914,8 +927,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     opacity: keepProgress,
                     child: _buildActionBadge(
                       label: 'KEEP',
-                      color: Colors.green.shade600,
-                      icon: Icons.check_circle_outline_rounded,
+                      bgColor: AppColors.gold,
+                      textColor: AppColors.ink,
+                      icon: Icons.check_rounded,
                       angle: -0.15,
                     ),
                   ),
@@ -931,7 +945,8 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                       opacity: skipProgress,
                       child: _buildActionBadge(
                         label: 'SKIP',
-                        color: Colors.blue.shade600,
+                        bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                        textColor: isDark ? Colors.white : AppColors.ink,
                         icon: Icons.arrow_upward_rounded,
                         angle: 0.0,
                       ),
@@ -1094,7 +1109,8 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
   Widget _buildActionBadge({
     required String label,
-    required Color color,
+    required Color bgColor,
+    required Color textColor,
     required IconData icon,
     required double angle,
   }) {
@@ -1103,11 +1119,11 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.9),
+          color: bgColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.4),
+              color: bgColor.withValues(alpha: 0.4),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1116,15 +1132,13 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 20),
+            Icon(icon, color: textColor, size: 20),
             const Gap(8),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+              style: AppTypography.button15(color: textColor).copyWith(
                 letterSpacing: 1.2,
+                fontSize: 16,
               ),
             ),
           ],
@@ -1135,7 +1149,8 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
   Widget _buildRoundActionButton({
     required IconData icon,
-    required Color color,
+    required Color bgColor,
+    required Color iconColor,
     required double size,
     required double iconSize,
     required String tooltip,
@@ -1147,15 +1162,17 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
       child: Material(
         color: onPressed == null
             ? Colors.grey.withValues(alpha: 0.2)
-            : color.withValues(alpha: 0.12),
+            : bgColor,
         shape: const CircleBorder(),
+        elevation: onPressed == null ? 0 : 4,
+        shadowColor: bgColor.withValues(alpha: 0.35),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onPressed,
           child: Center(
             child: Icon(
               icon,
-              color: onPressed == null ? Colors.grey : color,
+              color: onPressed == null ? Colors.grey : iconColor,
               size: iconSize,
             ),
           ),
@@ -1174,16 +1191,16 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(color: AppColors.primary),
+              const CircularProgressIndicator(color: AppColors.violet),
               const Gap(20),
               Text(
                 'Scanning Photos...',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: AppTypography.heading20(color: isDark ? Colors.white : AppColors.ink),
               ),
               const Gap(6),
               Text(
                 'Organizing photos for swipe review',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: AppTypography.meta13(color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A)),
               ),
             ],
           ),
@@ -1200,21 +1217,19 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.12),
+                color: AppColors.gold.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.check_circle_rounded,
-                color: Colors.green,
+                color: AppColors.gold,
                 size: 56,
               ),
             ),
             const Gap(20),
             Text(
               'All Caught Up!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTypography.title30(color: isDark ? Colors.white : AppColors.ink),
             ),
             const Gap(8),
             Text(
@@ -1222,23 +1237,27 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                   ? 'You reviewed this batch. Tap below to confirm and move items to Trash.'
                   : 'No photos to review in ${_selectedScope.label}. Choose another album above.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: AppTypography.body15(
+                color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
               ),
             ),
             const Gap(24),
             if (_trashQueue.isNotEmpty)
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.error,
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: AppColors.ink,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 onPressed: _showReviewBottomSheet,
-                icon: const Icon(Icons.delete_sweep_rounded),
-                label: Text('Review ${_trashQueue.length} Queued Items'),
+                icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.ink),
+                label: Text(
+                  'Review ${_trashQueue.length} Queued Items',
+                  style: AppTypography.button15(color: AppColors.ink),
+                ),
               ),
           ],
         ),

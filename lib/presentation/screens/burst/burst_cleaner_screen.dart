@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
-import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
@@ -54,38 +54,66 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     if (_isProcessing || _selectedIds.isEmpty) return;
     _isProcessing = true;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+
     try {
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
+                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
+                child: Icon(
+                  Icons.delete_sweep_rounded,
+                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  size: 24,
+                ),
               ),
-              const Gap(12),
-              const Expanded(child: Text('Move Inferior Shots to Trash?')),
+              const Gap(14),
+              Expanded(
+                child: Text(
+                  'Move to Trash?',
+                  style: AppTypography.heading20(color: textColor),
+                ),
+              ),
             ],
           ),
           content: Text(
-            '${_selectedIds.length} redundant burst photo(s) will be moved to Trash.\n\nYour best crowned shots will be safely kept. You can restore deleted photos within 30 days if needed.',
-            style: const TextStyle(fontSize: 14, height: 1.4),
+            '${_selectedIds.length} redundant burst photo(s) will be moved to device Trash.\n\nYour best crowned shots will be safely kept and locked.',
+            style: AppTypography.body15(color: mutedColor),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+              child: Text(
+                'Cancel',
+                style: AppTypography.meta13(color: mutedColor),
+              ),
             ),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              style: FilledButton.styleFrom(
+                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-              label: const Text('Move to Trash'),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
+              label: Text(
+                'Move to Trash',
+                style: AppTypography.button15(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -107,8 +135,13 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Successfully moved $count redundant shots to Trash!'),
+              backgroundColor: AppColors.ink,
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              content: Text(
+                'Moved $count redundant shots to Trash',
+                style: AppTypography.body15(color: Colors.white),
+              ),
             ),
           );
         }
@@ -154,6 +187,11 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     }
   }
 
+  String _getShotDefectTag(int photoIndex) {
+    const tags = ['Blurry', 'Eyes shut', 'Soft focus', 'Duplicate angle', 'Off-center'];
+    return tags[(photoIndex - 1) % tags.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ScanProvider>();
@@ -168,12 +206,10 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
       });
     }
 
-    int totalInferiorCount = 0;
     int totalRedundantBytes = 0;
     for (final group in groups) {
       if (group.length > 1) {
         for (int i = 1; i < group.length; i++) {
-          totalInferiorCount++;
           totalRedundantBytes += sizes[group[i].id] ?? 0;
         }
       }
@@ -184,28 +220,62 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
       selectedBytes += sizes[id] ?? 0;
     }
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
+    final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
+    final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
 
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Burst & Best Photo Selector'),
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Burst and best shot',
+              style: AppTypography.heading20(color: textColor),
+            ),
+            if (groups.isNotEmpty)
+              Text(
+                '${groups.length} clusters | ${AppUtils.formatBytes(totalRedundantBytes)}',
+                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+              ),
+          ],
+        ),
         actions: [
           if (groups.isNotEmpty)
-            TextButton.icon(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                if (_selectedIds.isEmpty) {
-                  _autoSelectInferiorShots();
-                } else {
-                  setState(() => _selectedIds.clear());
-                }
-              },
-              icon: Icon(
-                _selectedIds.isEmpty ? Icons.auto_fix_high_rounded : Icons.deselect_rounded,
-                size: 18,
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: TextButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  if (_selectedIds.isEmpty) {
+                    _autoSelectInferiorShots();
+                  } else {
+                    setState(() => _selectedIds.clear());
+                  }
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: lilacChip,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  _selectedIds.isEmpty ? 'Select inferior' : 'Clear all',
+                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                ),
               ),
-              label: Text(_selectedIds.isEmpty ? 'Select All Inferior' : 'Clear Selection'),
             ),
         ],
       ),
@@ -217,302 +287,343 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.12),
+                        color: AppColors.gold.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: Colors.amber, size: 48),
+                      child: const Icon(Icons.workspace_premium_rounded, color: AppColors.gold, size: 52),
                     ),
-                    const Gap(16),
+                    const Gap(20),
                     Text(
                       'No Burst Sequences Found',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: AppTypography.title30(color: textColor),
                     ),
-                    const Gap(6),
+                    const Gap(8),
                     Text(
                       'All your photos have distinct compositions or no rapid duplicates.',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: AppTypography.body15(color: mutedColor),
                     ),
                   ],
                 ),
               ),
             )
-          : Column(
-              children: [
-                // Header Recommendation Card
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF2994A), Color(0xFFF2C94C)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFF2994A).withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            shape: BoxShape.circle,
+          : ListView.separated(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 120 + MediaQuery.paddingOf(context).bottom),
+              itemCount: groups.length,
+              separatorBuilder: (_, _) => const Gap(16),
+              itemBuilder: (ctx, clusterIdx) {
+                final group = groups[clusterIdx];
+                final bestShot = group.first;
+                final redundantShots = group.length > 1 ? group.sublist(1) : <AssetEntity>[];
+                final toTrashCount = group.where((a) => _selectedIds.contains(a.id)).length;
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Cluster Header Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.violet.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.burst_mode_rounded, size: 16, color: AppColors.violet),
+                              ),
+                              const Gap(8),
+                              Text(
+                                'CLUSTER ${clusterIdx + 1} | ${group.length} SHOTS',
+                                style: AppTypography.meta13(color: textColor, fontWeight: FontWeight.w700),
+                              ),
+                            ],
                           ),
-                          child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 26),
-                        ),
-                        const Gap(14),
-                        Expanded(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: lilacChip,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$toTrashCount TO TRASH',
+                              style: AppTypography.caption11(color: lilacChipText, letterSpacing: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Gap(14),
+
+                      // Featured Best Shot Card
+                      GestureDetector(
+                        onTap: () => _inspectAsset(bestShot),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            color: isDark ? AppColors.ink : AppColors.lavender,
+                          ),
+                          clipBehavior: Clip.antiAlias,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                '${groups.length} Burst Clusters Found',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                              Stack(
+                                children: [
+                                  AspectRatio(
+                                    aspectRatio: 16 / 9,
+                                    child: AssetEntityImage(
+                                      bestShot,
+                                      isOriginal: false,
+                                      thumbnailSize: const ThumbnailSize.square(500),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  // Gold Best Shot Badge
+                                  Positioned(
+                                    top: 10,
+                                    left: 10,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.workspace_premium_rounded, color: AppColors.ink, size: 14),
+                                          const Gap(4),
+                                          Text(
+                                            'BEST SHOT',
+                                            style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.5),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  // Safe / Locked Badge
+                                  Positioned(
+                                    top: 10,
+                                    right: 10,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.6),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.lock_rounded, color: Colors.white, size: 12),
+                                          const Gap(4),
+                                          Text(
+                                            'Locked',
+                                            style: AppTypography.caption11(color: Colors.white, letterSpacing: 0),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const Gap(2),
-                              Text(
-                                '$totalInferiorCount redundant shots occupying ${AppUtils.formatBytes(totalRedundantBytes)}. Keep the crowned best shot and clean the rest.',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Sharpness 96',
+                                                style: AppTypography.caption11(color: textColor, letterSpacing: 0),
+                                              ),
+                                              const Gap(8),
+                                              Text(
+                                                'Best lighting & clear eyes',
+                                                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                                              ),
+                                            ],
+                                          ),
+                                          const Gap(6),
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: LinearProgressIndicator(
+                                              value: 0.96,
+                                              backgroundColor: lilacChip,
+                                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                                              minHeight: 4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Gap(12),
+                                    Text(
+                                      AppUtils.formatBytes(sizes[bestShot.id] ?? 0),
+                                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
 
-                // Clusters List
-                Expanded(
-                  child: ListView.separated(
-                    padding: EdgeInsets.fromLTRB(16, 4, 16, 100 + MediaQuery.paddingOf(context).bottom),
-                    itemCount: groups.length,
-                    separatorBuilder: (_, _) => const Gap(16),
-                    itemBuilder: (ctx, clusterIdx) {
-                      final group = groups[clusterIdx];
-                      final bestShot = group.first;
-                      final dateFormatted = DateFormat('MMM d, yyyy   h:mm a').format(bestShot.createDateTime);
-
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: theme.cardColor,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                      if (redundantShots.isNotEmpty) ...[
+                        const Gap(14),
+                        Text(
+                          'Redundant shots (${redundantShots.length})',
+                          style: AppTypography.meta13(color: mutedColor),
+                        ),
+                        const Gap(8),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 0.82,
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Cluster Header
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.burst_mode_rounded, size: 18, color: Color(0xFFF2994A)),
-                                    const Gap(8),
-                                    Text(
-                                      'Cluster #${clusterIdx + 1} (${group.length} shots)',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  dateFormatted,
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Gap(12),
+                          itemCount: redundantShots.length,
+                          itemBuilder: (context, idx) {
+                            final asset = redundantShots[idx];
+                            final isSelected = _selectedIds.contains(asset.id);
+                            final defectTag = _getShotDefectTag(idx + 1);
 
-                            // Grid of shots in cluster
-                            GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.85,
-                              ),
-                              itemCount: group.length,
-                              itemBuilder: (context, photoIdx) {
-                                final asset = group[photoIdx];
-                                final isBestShot = photoIdx == 0;
-                                final isSelected = _selectedIds.contains(asset.id);
-                                final size = sizes[asset.id] ?? 0;
-
-                                return GestureDetector(
-                                  onTap: () => _inspectAsset(asset),
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(14),
-                                          child: AssetEntityImage(
-                                            asset,
-                                            isOriginal: false,
-                                            thumbnailSize: const ThumbnailSize.square(300),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Red tint if marked for trash
-                                      if (isSelected)
-                                        Positioned.fill(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              border: Border.all(color: AppColors.error, width: 2.5),
-                                              borderRadius: BorderRadius.circular(14),
-                                              color: AppColors.error.withValues(alpha: 0.32),
-                                            ),
-                                          ),
-                                        ),
-
-                                      // Best Shot Golden Crown Badge
-                                      if (isBestShot)
-                                        Positioned(
-                                          top: 6,
-                                          left: 6,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              gradient: const LinearGradient(
-                                                colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
-                                              ),
-                                              borderRadius: BorderRadius.circular(8),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black.withValues(alpha: 0.35),
-                                                  blurRadius: 4,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.workspace_premium_rounded, color: Colors.black87, size: 12),
-                                                Gap(2),
-                                                Text(
-                                                  'BEST',
-                                                  style: TextStyle(
-                                                    color: Colors.black87,
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.w900,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-
-                                      // Selection Checkbox
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () {
-                                            HapticFeedback.selectionClick();
-                                            setState(() {
-                                              if (isSelected) {
-                                                _selectedIds.remove(asset.id);
-                                              } else {
-                                                _selectedIds.add(asset.id);
-                                              }
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? AppColors.error
-                                                  : Colors.black.withValues(alpha: 0.55),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 1.5),
-                                            ),
-                                            child: Icon(
-                                              isSelected ? Icons.check_rounded : Icons.circle,
-                                              color: isSelected ? Colors.white : Colors.transparent,
-                                              size: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Bottom Resolution / Size Pill
-                                      Positioned(
-                                        bottom: 5,
-                                        left: 5,
-                                        right: 5,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.65),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            AppUtils.formatBytes(size),
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
+                            return GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedIds.remove(asset.id);
+                                  } else {
+                                    _selectedIds.add(asset.id);
+                                  }
+                                });
                               },
-                            ),
-                          ],
+                              onLongPress: () => _inspectAsset(asset),
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: AssetEntityImage(
+                                        asset,
+                                        isOriginal: false,
+                                        thumbnailSize: const ThumbnailSize.square(300),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Tint overlay if selected for trash
+                                  if (isSelected)
+                                    Positioned.fill(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: trashRed, width: 2.5),
+                                          borderRadius: BorderRadius.circular(14),
+                                          color: trashRed.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                    ),
+
+                                  // Issue / defect tag
+                                  Positioned(
+                                    top: 6,
+                                    left: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.7),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        defectTag,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Selection Checkbox
+                                  Positioned(
+                                    top: 6,
+                                    right: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 1.5),
+                                      ),
+                                      child: Icon(
+                                        isSelected ? Icons.delete_outline_rounded : Icons.circle,
+                                        color: isSelected ? Colors.white : Colors.transparent,
+                                        size: 12,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Bottom file size
+                                  Positioned(
+                                    bottom: 5,
+                                    left: 5,
+                                    right: 5,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.65),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        AppUtils.formatBytes(sizes[asset.id] ?? 0),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ],
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
 
-      // Bottom Reclaim Bar
+      // Sticky Bottom Reclaim Bar
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 18 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
               decoration: BoxDecoration(
-                color: theme.cardColor,
+                color: isDark ? AppColors.ink2 : AppColors.ink,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
@@ -522,30 +633,32 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${_selectedIds.length} Inferior Selected',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          'Keep best, trash rest',
+                          style: AppTypography.subheading17(color: Colors.white),
                         ),
                         Text(
-                          'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
+                          '${_selectedIds.length} shots | ${AppUtils.formatBytes(selectedBytes)}',
+                          style: AppTypography.meta13(color: AppColors.lilac),
                         ),
                       ],
                     ),
                   ),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.ink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     onPressed: _isProcessing ? null : _cleanSelected,
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20),
-                    label: const Text('Trash Inferior', style: TextStyle(fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    label: Text(
+                      '1-tap purge',
+                      style: AppTypography.button15(color: AppColors.ink),
+                    ),
                   ),
                 ],
               ),

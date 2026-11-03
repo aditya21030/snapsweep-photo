@@ -6,6 +6,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
@@ -20,11 +21,11 @@ enum ScreenshotAgeFilter {
 
 extension ScreenshotAgeFilterLabel on ScreenshotAgeFilter {
   String get label => switch (this) {
-        ScreenshotAgeFilter.olderThan30Days => '> 30 Days',
-        ScreenshotAgeFilter.olderThan60Days => '> 60 Days',
-        ScreenshotAgeFilter.olderThan90Days => '> 90 Days',
-        ScreenshotAgeFilter.olderThan1Year => '> 1 Year',
-        ScreenshotAgeFilter.allScreenshots => 'All',
+        ScreenshotAgeFilter.olderThan30Days => 'Over 30 days',
+        ScreenshotAgeFilter.olderThan60Days => 'Over 60 days',
+        ScreenshotAgeFilter.olderThan90Days => 'Over 90 days',
+        ScreenshotAgeFilter.olderThan1Year => 'Over 1 year',
+        ScreenshotAgeFilter.allScreenshots => 'All screenshots',
       };
 }
 
@@ -92,38 +93,60 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
     if (_isProcessing || _selectedIds.isEmpty) return;
     _isProcessing = true;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+
     try {
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
+                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
+                child: Icon(
+                  Icons.delete_sweep_rounded,
+                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  size: 24,
+                ),
               ),
-              const Gap(12),
-              const Expanded(child: Text('Move Screenshots to Trash?')),
+              const Gap(14),
+              Expanded(
+                child: Text(
+                  'Move to Trash?',
+                  style: AppTypography.heading20(color: textColor),
+                ),
+              ),
             ],
           ),
           content: Text(
             '${_selectedIds.length} expired screenshot(s) will be sent to Trash.\n\nYou can restore them within 30 days if needed.',
-            style: const TextStyle(fontSize: 14, height: 1.4),
+            style: AppTypography.body15(color: mutedColor),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: AppTypography.meta13(color: mutedColor)),
             ),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              style: FilledButton.styleFrom(
+                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-              label: const Text('Move to Trash'),
+              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
+              label: Text('Move to Trash', style: AppTypography.button15(color: Colors.white)),
             ),
           ],
         ),
@@ -145,8 +168,13 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Successfully moved $count expired screenshots to Trash!'),
+              backgroundColor: AppColors.ink,
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              content: Text(
+                'Moved $count expired screenshots to Trash',
+                style: AppTypography.body15(color: Colors.white),
+              ),
             ),
           );
         }
@@ -202,11 +230,15 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
 
     int totalOlderThan30DaysCount = 0;
     int totalOlderThan30DaysBytes = 0;
+    int totalScreenshotsBytes = 0;
     final now = DateTime.now();
+
     for (final a in allScreenshots) {
+      final s = sizes[a.id] ?? 0;
+      totalScreenshotsBytes += s;
       if (now.difference(a.createDateTime).inDays >= 30) {
         totalOlderThan30DaysCount++;
-        totalOlderThan30DaysBytes += sizes[a.id] ?? 0;
+        totalOlderThan30DaysBytes += s;
       }
     }
 
@@ -215,166 +247,157 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
       selectedBytes += sizes[id] ?? 0;
     }
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
+    final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
+    final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
+
+    final displayedIds = displayedScreenshots.map((a) => a.id).toSet();
+    final bool allCurrentSelected = displayedIds.isNotEmpty && displayedIds.every((id) => _selectedIds.contains(id));
 
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Screenshot Expiry Cleaner'),
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Screenshot expiry',
+              style: AppTypography.heading20(color: textColor),
+            ),
+            Text(
+              '${allScreenshots.length} screenshots | ${AppUtils.formatBytes(totalScreenshotsBytes)}',
+              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+            ),
+          ],
+        ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.sort_rounded),
+            icon: Icon(Icons.sort_rounded, color: textColor),
             tooltip: 'Sort items',
+            color: cardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             initialValue: _sortOption,
             onSelected: (val) {
               HapticFeedback.selectionClick();
               setState(() => _sortOption = val);
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'date_desc',
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today_rounded, size: 18),
-                    Gap(10),
-                    Text('Newest Date First'),
-                  ],
-                ),
+                child: Text('Newest date first', style: AppTypography.meta13(color: textColor)),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'date_asc',
-                child: Row(
-                  children: [
-                    Icon(Icons.history_rounded, size: 18),
-                    Gap(10),
-                    Text('Oldest Date First'),
-                  ],
-                ),
+                child: Text('Oldest date first', style: AppTypography.meta13(color: textColor)),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'size',
-                child: Row(
-                  children: [
-                    Icon(Icons.storage_rounded, size: 18),
-                    Gap(10),
-                    Text('Largest Size First'),
-                  ],
-                ),
+                child: Text('Largest size first', style: AppTypography.meta13(color: textColor)),
               ),
             ],
           ),
+          if (displayedScreenshots.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: lilacChip,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    if (allCurrentSelected) {
+                      _selectedIds.removeAll(displayedIds);
+                    } else {
+                      _selectedIds.addAll(displayedIds);
+                    }
+                  });
+                },
+                child: Text(
+                  allCurrentSelected ? 'Deselect' : 'Select all',
+                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
         ],
       ),
       body: CustomScrollView(
         slivers: [
-          // Storage Overview Banner
+          // Gold Hero Card (Pages 14 & 44)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2F80ED), Color(0xFF56CCF2)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF2F80ED).withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: AppColors.gold,
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            shape: BoxShape.circle,
+                            color: AppColors.ink,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.screenshot_rounded, color: Colors.white, size: 24),
-                        ),
-                        const Gap(12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Temporary Screenshot Clutter',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              Text(
-                                '${allScreenshots.length} total screenshots found',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                              ),
-                            ],
+                          child: Text(
+                            'EXPIRED',
+                            style: AppTypography.caption11(color: AppColors.gold, letterSpacing: 0.8),
                           ),
                         ),
+                        if (totalOlderThan30DaysCount > 0)
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.ink,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _activeAgeFilter = ScreenshotAgeFilter.olderThan30Days;
+                                _autoSelectCurrentAgeGroup(
+                                  allScreenshots.where((a) => now.difference(a.createDateTime).inDays >= 30).toList(),
+                                );
+                              });
+                            },
+                            child: Text(
+                              'Select expired',
+                              style: AppTypography.button15(color: Colors.white).copyWith(fontSize: 13),
+                            ),
+                          ),
                       ],
                     ),
-                    if (totalOlderThan30DaysCount > 0) ...[
-                      const Gap(16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.hourglass_bottom_rounded, color: Colors.white, size: 20),
-                            const Gap(10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$totalOlderThan30DaysCount Expired Screenshots (${AppUtils.formatBytes(totalOlderThan30DaysBytes)})',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const Text(
-                                    'Older than 30 days. Receipts and OTPs you likely do not need.',
-                                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            FilledButton.tonal(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF2F80ED),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _activeAgeFilter = ScreenshotAgeFilter.olderThan30Days;
-                                  _autoSelectCurrentAgeGroup(
-                                    allScreenshots.where((a) => now.difference(a.createDateTime).inDays >= 30).toList(),
-                                  );
-                                });
-                              },
-                              child: const Text('Select Expired', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    const Gap(14),
+                    Text(
+                      AppUtils.formatBytes(totalOlderThan30DaysBytes),
+                      style: AppTypography.display48(color: AppColors.ink),
+                    ),
+                    const Gap(6),
+                    Text(
+                      '$totalOlderThan30DaysCount old OTPs, tickets, receipts, and order confirmations',
+                      style: AppTypography.body15(color: AppColors.ink, fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
@@ -384,7 +407,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
           // Age Filter Chips
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 44,
+              height: 42,
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
@@ -392,23 +415,30 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                   for (final filter in ScreenshotAgeFilter.values)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(filter.label),
-                        selected: _activeAgeFilter == filter,
-                        onSelected: (selected) {
-                          if (selected) {
-                            HapticFeedback.selectionClick();
-                            setState(() => _activeAgeFilter = filter);
-                          }
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _activeAgeFilter = filter);
                         },
-                        selectedColor: const Color(0xFF2F80ED),
-                        labelStyle: TextStyle(
-                          color: _activeAgeFilter == filter ? Colors.white : theme.colorScheme.onSurface,
-                          fontWeight: _activeAgeFilter == filter ? FontWeight.bold : FontWeight.w500,
-                          fontSize: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _activeAgeFilter == filter
+                                ? AppColors.violet
+                                : cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            filter.label,
+                            style: AppTypography.meta13(
+                              color: _activeAgeFilter == filter
+                                  ? Colors.white
+                                  : textColor,
+                              fontWeight: _activeAgeFilter == filter ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        showCheckmark: false,
                       ),
                     ),
                 ],
@@ -416,47 +446,21 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             ),
           ),
 
-          // Selection Row
+          // Section Counter Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     '${displayedScreenshots.length} screenshots found',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
                   ),
-                  if (displayedScreenshots.isNotEmpty)
-                    TextButton.icon(
-                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          final currentIds = displayedScreenshots.map((a) => a.id).toSet();
-                          final bool allSelected = currentIds.every((id) => _selectedIds.contains(id));
-                          if (allSelected) {
-                            _selectedIds.removeAll(currentIds);
-                          } else {
-                            _selectedIds.addAll(currentIds);
-                          }
-                        });
-                      },
-                      icon: Icon(
-                        displayedScreenshots.map((a) => a.id).toSet().every((id) => _selectedIds.contains(id))
-                            ? Icons.deselect_rounded
-                            : Icons.select_all_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        displayedScreenshots.map((a) => a.id).toSet().every((id) => _selectedIds.contains(id))
-                            ? 'Deselect All'
-                            : 'Select All',
-                      ),
-                    ),
+                  Text(
+                    _activeAgeFilter.label,
+                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                  ),
                 ],
               ),
             ),
@@ -472,27 +476,40 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle_rounded, size: 56, color: Colors.green.withValues(alpha: 0.6)),
-                      const Gap(14),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check_circle_rounded, size: 48, color: AppColors.gold),
+                      ),
+                      const Gap(16),
                       Text(
                         'No Screenshots Found',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: AppTypography.title30(color: textColor),
                       ),
-                      const Gap(4),
+                      const Gap(6),
                       Text(
                         'No screenshots match the selected age range.',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        style: AppTypography.body15(color: mutedColor),
                       ),
                       if (allScreenshots.isNotEmpty && _activeAgeFilter != ScreenshotAgeFilter.allScreenshots) ...[
-                        const Gap(14),
-                        OutlinedButton.icon(
+                        const Gap(16),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: lilacChip,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
                           onPressed: () {
                             HapticFeedback.selectionClick();
                             setState(() => _activeAgeFilter = ScreenshotAgeFilter.allScreenshots);
                           },
-                          icon: const Icon(Icons.history_rounded, size: 16),
-                          label: const Text('View All Recent Screenshots'),
+                          child: Text(
+                            'View All Screenshots',
+                            style: AppTypography.button15(color: lilacChipText),
+                          ),
                         ),
                       ],
                     ],
@@ -502,7 +519,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             )
           else
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 100 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 120 + MediaQuery.paddingOf(context).bottom),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -522,12 +539,22 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                     final dateStr = DateFormat('MMM d').format(asset.createDateTime);
 
                     return GestureDetector(
-                      onTap: () => _inspectAsset(asset),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          if (isSelected) {
+                            _selectedIds.remove(asset.id);
+                          } else {
+                            _selectedIds.add(asset.id);
+                          }
+                        });
+                      },
+                      onLongPress: () => _inspectAsset(asset),
                       child: Stack(
                         children: [
                           Positioned.fill(
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                               child: AssetEntityImage(
                                 asset,
                                 isOriginal: false,
@@ -541,9 +568,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                             Positioned.fill(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: AppColors.error, width: 2.5),
-                                  borderRadius: BorderRadius.circular(14),
-                                  color: AppColors.error.withValues(alpha: 0.32),
+                                  border: Border.all(color: trashRed, width: 2.5),
+                                  borderRadius: BorderRadius.circular(16),
+                                  color: trashRed.withValues(alpha: 0.32),
                                 ),
                               ),
                             ),
@@ -553,11 +580,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                             top: 6,
                             left: 6,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: daysOld >= 30
-                                    ? Colors.amber.shade900.withValues(alpha: 0.85)
-                                    : Colors.black.withValues(alpha: 0.65),
+                                color: Colors.black.withValues(alpha: 0.7),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -575,30 +600,17 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                           Positioned(
                             top: 6,
                             right: 6,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedIds.remove(asset.id);
-                                  } else {
-                                    _selectedIds.add(asset.id);
-                                  }
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.error : Colors.black.withValues(alpha: 0.55),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 1.5),
-                                ),
-                                child: Icon(
-                                  isSelected ? Icons.check_rounded : Icons.circle,
-                                  color: isSelected ? Colors.white : Colors.transparent,
-                                  size: 13,
-                                ),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: Icon(
+                                isSelected ? Icons.delete_outline_rounded : Icons.circle,
+                                color: isSelected ? Colors.white : Colors.transparent,
+                                size: 12,
                               ),
                             ),
                           ),
@@ -615,7 +627,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '$dateStr   ${AppUtils.formatBytes(size)}',
+                                '$dateStr | ${AppUtils.formatBytes(size)}',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -636,21 +648,14 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
         ],
       ),
 
-      // Bottom Bar
+      // Sticky Bottom Reclaim Bar
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 18 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
               decoration: BoxDecoration(
-                color: theme.cardColor,
+                color: isDark ? AppColors.ink2 : AppColors.ink,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -3),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
@@ -660,28 +665,30 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${_selectedIds.length} Selected',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          '${_selectedIds.length} selected',
+                          style: AppTypography.subheading17(color: Colors.white),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
+                          style: AppTypography.meta13(color: AppColors.lilac),
                         ),
                       ],
                     ),
                   ),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.ink,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: _isProcessing ? null : _cleanSelected,
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20),
-                    label: const Text('Move to Trash', style: TextStyle(fontWeight: FontWeight.bold)),
+                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    label: Text(
+                      'Move to Trash',
+                      style: AppTypography.button15(color: AppColors.ink),
+                    ),
                   ),
                 ],
               ),

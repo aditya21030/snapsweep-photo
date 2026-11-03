@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vidsqueeze/vidsqueeze.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../providers/scan_provider.dart';
 
@@ -183,7 +184,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             _previewController = controller;
           });
 
-          // Always finalize and save result to gallery
+          // Finalize and save result to gallery
           await _finalizeAndSave(result, asset);
         }
       } else {
@@ -266,8 +267,10 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             final savedBytes = result.sourceSizeBytes - result.outputSizeBytes;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
+                backgroundColor: AppColors.ink,
                 content: Text(
                   'Original moved to Trash! Saved ${AppUtils.formatBytes(savedBytes)}',
+                  style: AppTypography.body15(color: Colors.white),
                 ),
                 behavior: SnackBarBehavior.floating,
               ),
@@ -276,8 +279,12 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Compressed copy saved to Gallery! Original kept.'),
+          SnackBar(
+            backgroundColor: AppColors.ink,
+            content: Text(
+              'Compressed copy saved to Gallery! Original kept.',
+              style: AppTypography.body15(color: Colors.white),
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -299,6 +306,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
       final shouldLeave = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           title: const Text('Cancel Compression?'),
           content: const Text('A video is currently being compressed. Exiting will cancel this operation.'),
           actions: [
@@ -307,7 +315,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               child: const Text('Stay'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.trashRedLight),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Cancel & Leave'),
             ),
@@ -340,8 +348,16 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final largeVideos = provider.largeVideos;
     final sizes = provider.assetSizes;
 
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+
+    int totalVideoBytes = 0;
+    for (final v in largeVideos) {
+      totalVideoBytes += sizes[v.id] ?? 0;
+    }
 
     return PopScope(
       canPop: false,
@@ -353,23 +369,38 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         }
       },
       child: Scaffold(
+        backgroundColor: bg,
         appBar: AppBar(
-          title: const Text('Compress & Save'),
-          leading: (widget.initialAsset == null && _selectedAsset != null)
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () async {
-                    final canLeave = await _handleWillPop();
-                    if (canLeave && context.mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                )
-              : null,
+          backgroundColor: bg,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: textColor),
+            onPressed: () async {
+              final canLeave = await _handleWillPop();
+              if (canLeave && context.mounted) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _selectedAsset == null ? 'Large videos' : 'Compress video',
+                style: AppTypography.heading20(color: textColor),
+              ),
+              if (_selectedAsset == null)
+                Text(
+                  '${largeVideos.length} videos | ${AppUtils.formatBytes(totalVideoBytes)}',
+                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                ),
+            ],
+          ),
         ),
         body: _selectedAsset == null
-            ? _buildVideoPickerList(largeVideos, sizes, theme, isDark)
-            : _buildCompressionWorkflow(_selectedAsset!, sizes, theme, isDark),
+            ? _buildVideoPickerList(largeVideos, sizes, cardBg, textColor, mutedColor, isDark)
+            : _buildCompressionWorkflow(_selectedAsset!, sizes, cardBg, textColor, mutedColor, isDark),
       ),
     );
   }
@@ -377,7 +408,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   Widget _buildVideoPickerList(
     List<AssetEntity> videos,
     Map<String, int> sizes,
-    ThemeData theme,
+    Color cardBg,
+    Color textColor,
+    Color mutedColor,
     bool isDark,
   ) {
     if (videos.isEmpty) {
@@ -388,23 +421,23 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8E2DE2).withValues(alpha: 0.12),
+                  color: AppColors.gold.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.compress_rounded, color: Color(0xFF8E2DE2), size: 48),
+                child: const Icon(Icons.videocam_off_rounded, color: AppColors.gold, size: 52),
               ),
               const Gap(16),
               Text(
                 'No Large Videos Found',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: AppTypography.title30(color: textColor),
               ),
               const Gap(6),
               Text(
                 'Your gallery does not have heavy videos requiring compression.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: AppTypography.body15(color: mutedColor),
               ),
             ],
           ),
@@ -414,48 +447,41 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
 
     return Column(
       children: [
-        // Header Banner
+        // Violet Hero Banner (Pages 15 & 45)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8E2DE2).withValues(alpha: 0.35),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: AppColors.violet,
+              borderRadius: BorderRadius.circular(24),
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.auto_fix_high_rounded, color: Colors.white, size: 24),
-                ),
-                const Gap(14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Save up to 80% Space',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.lilac,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'SAVE UP TO 80%',
+                          style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                        ),
                       ),
+                      const Gap(10),
                       Text(
-                        'Shrink 4K and 1080p videos using native hardware encoding without deleting memories.',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                        'Compress & save space',
+                        style: AppTypography.heading20(color: Colors.white),
+                      ),
+                      const Gap(4),
+                      Text(
+                        'Shrink 4K and 1080p videos with native hardware encoding.',
+                        style: AppTypography.body15(color: AppColors.lilac),
                       ),
                     ],
                   ),
@@ -475,12 +501,13 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               final video = videos[index];
               final size = sizes[video.id] ?? 0;
               final duration = Duration(seconds: video.duration);
+              final is4k = video.width >= 3840 || video.height >= 2160;
 
               return Material(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
+                color: cardBg,
+                borderRadius: BorderRadius.circular(20),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   onTap: () {
                     HapticFeedback.selectionClick();
                     setState(() {
@@ -499,15 +526,15 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                     child: Row(
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
                               AssetEntityImage(
                                 video,
                                 isOriginal: false,
-                                width: 72,
-                                height: 72,
+                                width: 76,
+                                height: 76,
                                 fit: BoxFit.cover,
                                 thumbnailSize: const ThumbnailSize.square(200),
                               ),
@@ -517,8 +544,24 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                                   color: Colors.black.withValues(alpha: 0.45),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
+                                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
                               ),
+                              if (is4k)
+                                Positioned(
+                                  bottom: 4,
+                                  left: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.gold,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      '4K',
+                                      style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0),
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -531,40 +574,45 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                                 video.title ?? 'Video #${index + 1}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                style: AppTypography.subheading17(color: textColor),
                               ),
                               const Gap(4),
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF8E2DE2).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      AppUtils.formatBytes(size),
-                                      style: const TextStyle(
-                                        color: Color(0xFF8E2DE2),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
-                                      ),
-                                    ),
+                                  Text(
+                                    AppUtils.formatBytes(size),
+                                    style: AppTypography.meta13(color: AppColors.violet, fontWeight: FontWeight.w700),
                                   ),
                                   const Gap(8),
                                   Text(
                                     AppUtils.formatDuration(duration),
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      fontSize: 12,
-                                    ),
+                                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: AppColors.ink,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _selectedAsset = video;
+                              _resolvedOriginalBytes = size > 0 ? size : null;
+                              _lastResult = null;
+                            });
+                          },
+                          child: Text(
+                            'Compress',
+                            style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 12),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -580,7 +628,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   Widget _buildCompressionWorkflow(
     AssetEntity asset,
     Map<String, int> sizes,
-    ThemeData theme,
+    Color cardBg,
+    Color textColor,
+    Color mutedColor,
     bool isDark,
   ) {
     final originalBytes = _resolvedOriginalBytes ?? sizes[asset.id] ?? 0;
@@ -589,21 +639,14 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final estimatedSavingsBytes = (originalBytes * savingsRatio).toInt();
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, 36 + MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 36 + MediaQuery.paddingOf(context).bottom),
       children: [
-        // Video Preview Card
+        // Video Preview Container
         Container(
           height: 220,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             color: Colors.black,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -624,36 +667,13 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   fit: BoxFit.cover,
                   thumbnailSize: const ThumbnailSize.square(800),
                 ),
-              if (_lastResult != null)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade700,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle_rounded, color: Colors.white, size: 14),
-                        Gap(6),
-                        Text(
-                          'Compressed Preview',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               if (_previewController != null)
                 Center(
                   child: IconButton(
-                    iconSize: 48,
+                    iconSize: 52,
                     icon: Icon(
                       _previewController!.value.isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
-                      color: Colors.white70,
+                      color: Colors.white,
                     ),
                     onPressed: () {
                       setState(() {
@@ -671,15 +691,12 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         ),
         const Gap(16),
 
-        // Size & Savings Projection Card
+        // Comparison & Savings Card (Pages 18, 20 & 21)
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-            ),
+            color: cardBg,
+            borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
             children: [
@@ -689,54 +706,53 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Original Size', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
+                      Text('Original Size', style: AppTypography.caption11(color: mutedColor, letterSpacing: 0)),
                       const Gap(2),
                       Text(
                         AppUtils.formatBytes(originalBytes),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: AppTypography.heading20(color: textColor),
                       ),
                     ],
                   ),
-                  const Icon(Icons.arrow_forward_rounded, color: Colors.grey, size: 20),
+                  const Icon(Icons.arrow_forward_rounded, color: AppColors.violet, size: 20),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        _lastResult != null ? 'Compressed Size' : 'Projected Size',
-                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12),
+                        _lastResult != null ? 'Compressed' : 'Projected Size',
+                        style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                       ),
                       const Gap(2),
                       Text(
                         _lastResult != null
                             ? AppUtils.formatBytes(_lastResult!.outputSizeBytes)
                             : AppUtils.formatBytes(projectedBytes),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF8E2DE2)),
+                        style: AppTypography.heading20(color: AppColors.violet),
                       ),
                     ],
                   ),
                 ],
               ),
-              const Gap(12),
-              const Divider(height: 1),
-              const Gap(12),
+              const Gap(14),
+              // Gold Savings Banner
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.gold,
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.eco_rounded, color: Colors.green, size: 18),
+                    const Icon(Icons.savings_rounded, color: AppColors.ink, size: 20),
                     const Gap(8),
                     Text(
                       _lastResult != null
                           ? (_lastResult!.sourceSizeBytes > 0 && _lastResult!.outputSizeBytes < _lastResult!.sourceSizeBytes
-                              ? 'Saved ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} (${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%)'
+                              ? 'YOU SAVED ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} | ${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%'
                               : 'Original was already optimal size')
-                          : 'Save ~${AppUtils.formatBytes(estimatedSavingsBytes)} (${(savingsRatio * 100).toInt()}% reduction)',
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                          : 'YOU SAVE ~${AppUtils.formatBytes(estimatedSavingsBytes)} | ${(savingsRatio * 100).toInt()}%',
+                      style: AppTypography.button15(color: AppColors.ink),
                     ),
                   ],
                 ),
@@ -744,107 +760,137 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             ],
           ),
         ),
-        const Gap(18),
+        const Gap(16),
 
-        // Quality Preset Selector
+        // Quality Presets (Page 18)
         if (_lastResult == null && !_isCompressing) ...[
-          Text('Compression Preset', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const Gap(10),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Select Preset',
+              style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
+            ),
+          ),
           _buildPresetOption(
             preset: CompressionPreset.balanced,
             title: 'Balanced (Recommended)',
+            badge: 'BEST',
             subtitle: '1080p Full HD | Great balance of clarity and ~65% size reduction',
-            theme: theme,
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            isDark: isDark,
           ),
-          const Gap(8),
+          const Gap(10),
           _buildPresetOption(
             preset: CompressionPreset.smallSize,
             title: 'Maximum Space Saver',
+            badge: null,
             subtitle: '720p HD | Perfect for sharing on WhatsApp, saves ~80% space',
-            theme: theme,
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            isDark: isDark,
           ),
-          const Gap(8),
+          const Gap(10),
           _buildPresetOption(
             preset: CompressionPreset.quality,
             title: 'Ultra HD Preserver',
-            subtitle: '1440p / 4K | Retains highest detail with optimized HEVC bitrate',
-            theme: theme,
+            badge: null,
+            subtitle: '1440p / 2K | Retains highest detail with optimized HEVC bitrate',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            isDark: isDark,
           ),
           const Gap(16),
 
           // Replace original switch
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Move Original to Trash', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            subtitle: const Text(
-              'Safely frees storage immediately while keeping the compressed copy.',
-              style: TextStyle(fontSize: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
             ),
-            value: _replaceOriginal,
-            activeThumbColor: const Color(0xFF8E2DE2),
-            onChanged: (val) => setState(() => _replaceOriginal = val),
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Move original to Trash',
+                style: AppTypography.subheading17(color: textColor),
+              ),
+              subtitle: Text(
+                'Safely frees storage immediately while keeping the compressed copy.',
+                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+              ),
+              value: _replaceOriginal,
+              activeThumbColor: AppColors.gold,
+              activeTrackColor: AppColors.ink,
+              onChanged: (val) => setState(() => _replaceOriginal = val),
+            ),
           ),
           const Gap(20),
         ],
 
-        // Compression In Progress Bar
+        // Compression in progress (Page 19)
         if (_isCompressing) ...[
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF8E2DE2).withValues(alpha: 0.3)),
+              color: cardBg,
+              borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Hardware Encoding...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text(
-                      '${(_compressionProgress * 100).toInt()}%',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8E2DE2), fontSize: 15),
-                    ),
-                  ],
+                Text(
+                  '${(_compressionProgress * 100).toInt()}%',
+                  style: AppTypography.display48(color: AppColors.violet),
                 ),
-                const Gap(12),
-                LinearProgressIndicator(
-                  value: _compressionProgress,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  color: const Color(0xFF8E2DE2),
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(6),
+                const Gap(8),
+                Text(
+                  'Encoding with hardware acceleration...',
+                  style: AppTypography.body15(color: mutedColor),
                 ),
                 const Gap(16),
-                OutlinedButton.icon(
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: _compressionProgress,
+                    backgroundColor: isDark ? AppColors.ink : AppColors.lavender,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.violet),
+                    minHeight: 8,
+                  ),
+                ),
+                const Gap(20),
+                TextButton(
                   onPressed: _cancelCompression,
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text('Cancel Compression'),
+                  child: Text('Cancel', style: AppTypography.button15(color: AppColors.trashRedLight)),
                 ),
               ],
             ),
           ),
         ] else if (_lastResult == null) ...[
           // Start Compression Button
-          FilledButton.icon(
+          FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8E2DE2),
+              backgroundColor: AppColors.violet,
+              foregroundColor: Colors.white,
+              elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             onPressed: _startCompression,
-            icon: const Icon(Icons.compress_rounded, size: 22),
-            label: const Text(
-              'Start Fast Compression',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            child: Text(
+              'Start compression',
+              style: AppTypography.button15(color: Colors.white),
             ),
           ),
         ] else ...[
-          // Completed Actions
-          FilledButton.icon(
+          // Completed Actions (Pages 20 & 21)
+          FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
+              backgroundColor: AppColors.violet,
+              foregroundColor: Colors.white,
+              elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
@@ -857,8 +903,10 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                 _previewController = null;
               });
             },
-            icon: const Icon(Icons.check_rounded, size: 22),
-            label: const Text('Compress Another Video', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              'Compress another video',
+              style: AppTypography.button15(color: Colors.white),
+            ),
           ),
         ],
       ],
@@ -868,29 +916,31 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   Widget _buildPresetOption({
     required CompressionPreset preset,
     required String title,
+    required String? badge,
     required String subtitle,
-    required ThemeData theme,
+    required Color cardBg,
+    required Color textColor,
+    required Color mutedColor,
+    required bool isDark,
   }) {
     final isSelected = preset == _selectedPreset;
 
     return Material(
-      color: isSelected
-          ? const Color(0xFF8E2DE2).withValues(alpha: 0.1)
-          : theme.cardColor,
-      borderRadius: BorderRadius.circular(16),
+      color: cardBg,
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           HapticFeedback.selectionClick();
           setState(() => _selectedPreset = preset);
         },
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? const Color(0xFF8E2DE2) : theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
-              width: isSelected ? 1.8 : 1,
+              color: isSelected ? AppColors.violet : Colors.transparent,
+              width: 2,
             ),
           ),
           child: Row(
@@ -901,21 +951,42 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF8E2DE2) : Colors.grey,
+                    color: isSelected ? AppColors.violet : mutedColor,
                     width: isSelected ? 6 : 2,
                   ),
                 ),
               ),
-              const Gap(12),
+              const Gap(14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const Gap(2),
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: AppTypography.subheading17(color: textColor),
+                        ),
+                        if (badge != null) ...[
+                          const Gap(8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge,
+                              style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const Gap(3),
                     Text(
                       subtitle,
-                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12),
+                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
                     ),
                   ],
                 ),

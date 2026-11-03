@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 
 class CategoryCard extends StatelessWidget {
   final String title;
   final String count;
   final String? size;
   final AssetEntity? thumbnail;
+  final int index;
   final VoidCallback onTap;
 
   const CategoryCard({
@@ -17,6 +20,7 @@ class CategoryCard extends StatelessWidget {
     required this.count,
     this.size,
     this.thumbnail,
+    required this.index,
     required this.onTap,
   });
 
@@ -45,119 +49,103 @@ class CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 4-color cycling system per PDF design: Violet, Ink, Gold, Lilac
+    final (Color cardBg, Color textColor, Color mutedColor, Color iconBg) = switch (index % 4) {
+      0 => (AppColors.violet, Colors.white, AppColors.lilac, Colors.white.withValues(alpha: 0.2)),
+      1 => (isDark ? AppColors.ink2 : AppColors.ink, Colors.white, AppColors.lilac, Colors.white.withValues(alpha: 0.2)),
+      2 => (AppColors.gold, AppColors.ink, AppColors.ink.withValues(alpha: 0.7), AppColors.ink.withValues(alpha: 0.12)),
+      _ => (isDark ? AppColors.violetDeep : AppColors.lilac, isDark ? Colors.white : AppColors.ink, isDark ? AppColors.lilac : AppColors.ink.withValues(alpha: 0.7), isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.ink.withValues(alpha: 0.08)),
+    };
+
     return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Material(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onTap();
-              },
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Background Image
-                  if (thumbnail != null)
-                    AssetEntityImage(
-                      thumbnail!,
-                      isOriginal: false,
-                      thumbnailSize: const ThumbnailSize.square(250),
-                      fit: BoxFit.cover,
-                    )
-                  else
-                    const Center(child: Icon(Icons.image_not_supported, color: Colors.grey)),
-
-                  // Gradient Overlay
-                  const _GradientOverlay(),
-
-                  // Top Category Icon Pill
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
+      child: Material(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Top Row: Icon pill + Size pill
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: iconBg,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         _getCategoryIcon(title),
-                        color: Colors.white,
-                        size: 16,
+                        color: textColor,
+                        size: 18,
                       ),
                     ),
-                  ),
+                    if (size != null && size!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          size!,
+                          style: AppTypography.caption11(color: textColor, letterSpacing: 0),
+                        ),
+                      ),
+                  ],
+                ),
 
-                  // Text Content
-                  Padding(
-                    padding: const EdgeInsets.all(14.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 1)),
-                            ],
-                          ),
+                // Center Thumbnail Preview
+                if (thumbnail != null)
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: AssetEntityImage(
+                          thumbnail!,
+                          isOriginal: false,
+                          thumbnailSize: const ThumbnailSize.square(180),
+                          fit: BoxFit.cover,
                         ),
-                        const Gap(4),
-                        Text(
-                          size != null && size!.isNotEmpty ? '$count   $size' : count,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  )
+                else
+                  const Gap(48),
+
+                // Bottom Titles
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.subheading17(color: textColor),
+                    ),
+                    const Gap(2),
+                    Text(
+                      count,
+                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GradientOverlay extends StatelessWidget {
-  const _GradientOverlay();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.15),
-            Colors.transparent,
-            Colors.black.withValues(alpha: 0.85),
-          ],
-          stops: const [0.0, 0.4, 1.0],
         ),
       ),
     );

@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:gap/gap.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -29,13 +30,13 @@ class _PermissionScreenState extends State<PermissionScreen> {
     if (Platform.isAndroid) {
       final androidInfo = await DeviceInfoPlugin().androidInfo;
       if (androidInfo.version.sdkInt >= 33) {
-        // Android 13+ (request both photos and videos for gallery & video cleanup)
         final statuses = await [Permission.photos, Permission.videos].request();
-        final photosOk = statuses[Permission.photos]?.isGranted == true || statuses[Permission.photos]?.isLimited == true;
-        final videosOk = statuses[Permission.videos]?.isGranted == true || statuses[Permission.videos]?.isLimited == true;
+        final photosOk = statuses[Permission.photos]?.isGranted == true ||
+            statuses[Permission.photos]?.isLimited == true;
+        final videosOk = statuses[Permission.videos]?.isGranted == true ||
+            statuses[Permission.videos]?.isLimited == true;
         granted = photosOk || videosOk;
       } else {
-        // Android < 13
         final status = await Permission.storage.request();
         granted = status.isGranted;
       }
@@ -55,9 +56,14 @@ class _PermissionScreenState extends State<PermissionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Permission required to scan and clean gallery.'),
+            backgroundColor: AppColors.ink,
+            content: Text(
+              'Permission required to scan and clean gallery.',
+              style: AppTypography.body15(color: Colors.white),
+            ),
             action: SnackBarAction(
               label: 'Settings',
+              textColor: AppColors.gold,
               onPressed: () => openAppSettings(),
             ),
           ),
@@ -68,131 +74,222 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final primaryTextColor = isDark ? Colors.white : AppColors.ink;
+    final secondaryTextColor =
+        isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A);
+
     return Scaffold(
+      backgroundColor: bgColor,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 12),
-              
-              // Privacy Trust Banner
+              const Gap(16),
+
+              // Top Graphic Illustration Container (Page 4 / 34)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                  color: isDark ? const Color(0xFF0C0220) : AppColors.ink,
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
                   children: [
-                    Icon(Icons.shield_outlined, color: Colors.green, size: 16),
-                    Gap(8),
-                    Text(
-                      "100% On-Device | Photos Never Uploaded",
-                      style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
+                    // Row 1 of photo cards
+                    Row(
+                      children: [
+                        _buildPhotoCard(
+                          bg: AppColors.lilac,
+                          mountainColor: AppColors.violet,
+                          sunColor: AppColors.gold,
+                        ),
+                        const Gap(10),
+                        _buildPhotoCard(
+                          bg: AppColors.gold,
+                          mountainColor: AppColors.ink,
+                          sunColor: Colors.white,
+                          isHighlighted: true,
+                        ),
+                        const Gap(10),
+                        _buildPhotoCard(
+                          bg: AppColors.violet,
+                          mountainColor: AppColors.violetDeep,
+                          sunColor: AppColors.gold,
+                        ),
+                      ],
+                    ),
+                    const Gap(10),
+                    // Row 2 of photo cards
+                    Row(
+                      children: [
+                        _buildPhotoCard(
+                          bg: AppColors.violet,
+                          mountainColor: const Color(0xFF4311B0),
+                          sunColor: Colors.white,
+                        ),
+                        const Gap(10),
+                        _buildPhotoCard(
+                          bg: AppColors.lilac,
+                          mountainColor: AppColors.violet,
+                          sunColor: Colors.white,
+                        ),
+                        const Gap(10),
+                        _buildPhotoCard(
+                          bg: AppColors.lilac,
+                          mountainColor: AppColors.ink,
+                          sunColor: AppColors.gold,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
 
-              // Hero Center Graphic
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary.withValues(alpha: 0.15),
-                          AppColors.secondary.withValues(alpha: 0.15),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.photo_library_rounded,
-                      size: 68,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const Gap(24),
-                  Text(
-                    "Clean & Optimize Your Photos",
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const Gap(8),
-                  Text(
-                    "SnapSweep needs access to your gallery to find duplicate copies, blurry shots, and organize categories.",
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const Gap(28),
+              const Gap(28),
 
-                  // 3 Feature Cards
-                  _buildFeatureRow(
-                    icon: Icons.copy_rounded,
-                    title: "Find Exact Duplicate Copies",
-                    subtitle: "Safely delete redundant identical files.",
-                  ),
-                  const Gap(16),
-                  _buildFeatureRow(
-                    icon: Icons.blur_on_rounded,
-                    title: "Detect Blurry Shots & Large Videos",
-                    subtitle: "Free up storage by reviewing out-of-focus media.",
-                  ),
-                  const Gap(16),
-                  _buildFeatureRow(
-                    icon: Icons.grid_view_rounded,
-                    title: "Smart Category Organizer",
-                    subtitle: "Screenshots, WhatsApp media, and receipts.",
-                  ),
-                ],
+              // Title
+              Text(
+                "Let SnapSweep look at\nyour gallery",
+                textAlign: TextAlign.center,
+                style: AppTypography.title30(
+                  color: primaryTextColor,
+                ).copyWith(fontSize: 26, height: 1.2),
               ),
 
-              // Bottom Action Button
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: FilledButton.icon(
-                      onPressed: _requestPermission,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      icon: _isRequesting
-                          ? const SizedBox.shrink()
-                          : const Icon(Icons.lock_open_rounded, size: 20),
-                      label: _isRequesting
-                          ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                          : const Text(
-                              "Allow Gallery Access",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
+              const Gap(12),
+
+              // Subtitle
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  "Photo access is used only to scan the gallery area you choose and find space you can safely review.",
+                  textAlign: TextAlign.center,
+                  style: AppTypography.body15(
+                    color: secondaryTextColor,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+
+              const Gap(28),
+
+              // 3 Value Benefit Cards
+              Container(
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : AppColors.lilac2.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _buildBenefitRow(
+                      icon: Icons.phone_android_rounded,
+                      title: "Scans on your phone",
+                      subtitle: "Nothing is uploaded",
+                      primaryText: primaryTextColor,
+                      secondaryText: secondaryTextColor,
+                      iconBg: isDark
+                          ? const Color(0xFF281357)
+                          : AppColors.lilac,
+                      iconColor: AppColors.violet,
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 72,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : AppColors.lilac.withValues(alpha: 0.7),
+                    ),
+                    _buildBenefitRow(
+                      icon: Icons.delete_outline_rounded,
+                      title: "Deletes go to Trash",
+                      subtitle: "Restore within 30 days",
+                      primaryText: primaryTextColor,
+                      secondaryText: secondaryTextColor,
+                      iconBg: isDark
+                          ? const Color(0xFF281357)
+                          : AppColors.lilac,
+                      iconColor: AppColors.violet,
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 72,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : AppColors.lilac.withValues(alpha: 0.7),
+                    ),
+                    _buildBenefitRow(
+                      icon: Icons.lock_outline_rounded,
+                      title: "No account needed",
+                      subtitle: "No sign-up, no tracking",
+                      primaryText: primaryTextColor,
+                      secondaryText: secondaryTextColor,
+                      iconBg: isDark
+                          ? const Color(0xFF281357)
+                          : AppColors.lilac,
+                      iconColor: AppColors.violet,
+                    ),
+                  ],
+                ),
+              ),
+
+              const Gap(32),
+
+              // Allow Access Primary Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isRequesting ? null : _requestPermission,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.violet,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  const Gap(12),
-                  Text(
-                    "All processing is done completely offline on your device.",
-                    style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ],
+                  child: _isRequesting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          "Allow access",
+                          style: AppTypography.button15(color: Colors.white)
+                              .copyWith(fontSize: 16),
+                        ),
+                ),
               ),
+
+              const Gap(12),
+
+              // Open Settings Text Button
+              TextButton(
+                onPressed: () => openAppSettings(),
+                child: Text(
+                  "Open settings",
+                  style: AppTypography.button15(
+                    color: AppColors.violet,
+                  ),
+                ),
+              ),
+
+              const Gap(16),
             ],
           ),
         ),
@@ -200,32 +297,125 @@ class _PermissionScreenState extends State<PermissionScreen> {
     );
   }
 
-  Widget _buildFeatureRow({
+  Widget _buildBenefitRow({
     required IconData icon,
     required String title,
     required String subtitle,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color iconBg,
+    required Color iconColor,
   }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 22, color: iconColor),
           ),
-          child: Icon(icon, color: AppColors.primary, size: 22),
-        ),
-        const Gap(14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text(subtitle, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-            ],
+          const Gap(14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTypography.body15(
+                    color: primaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Gap(2),
+                Text(
+                  subtitle,
+                  style: AppTypography.meta13(
+                    color: secondaryText,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoCard({
+    required Color bg,
+    required Color mountainColor,
+    required Color sunColor,
+    bool isHighlighted = false,
+  }) {
+    return Expanded(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(16),
+              border: isHighlighted
+                  ? Border.all(color: AppColors.gold, width: 2.5)
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 10,
+                    right: 12,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: sunColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: mountainColor,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isHighlighted)
+            Positioned(
+              top: -6,
+              right: -6,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: AppColors.gold,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  size: 12,
+                  color: AppColors.ink,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

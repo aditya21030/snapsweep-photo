@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../providers/theme_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/legal_content.dart';
 import '../../../core/services/billing_service.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../providers/theme_provider.dart';
 import 'legal_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,103 +21,187 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final themeProvider = context.watch<ThemeProvider>();
+
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text(
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
           'Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: AppTypography.heading20(color: textColor),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 40 + MediaQuery.paddingOf(context).bottom),
         children: [
-          // Section: Preferences
-          _buildSectionHeader('Preferences'),
-          _buildSettingsTile(
-            context,
-            icon: Icons.palette_outlined,
-            title: 'Theme',
-            subtitle: 'System default, light, dark',
-            iconColor: AppColors.primary,
-            onTap: () {
-              _showThemeDialog(context);
-            },
-          ),
-
-          const Gap(20),
-
-          // Section: Premium & Billing
-          _buildSectionHeader('Premium'),
+          // Pro Hero Banner (Pages 26 & 56)
           ValueListenableBuilder<bool>(
             valueListenable: BillingService.isPremiumNotifier,
             builder: (context, isPremium, child) {
               if (isPremium) {
-                return _buildSettingsTile(
-                  context,
-                  icon: Icons.verified_rounded,
-                  title: 'Premium Active',
-                  subtitle: 'Ad-free experience unlocked for lifetime',
-                  iconColor: Colors.amber,
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'PRO',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                return Container(
+                  padding: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.ink2 : AppColors.ink,
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  onTap: () {},
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.workspace_premium_rounded, color: AppColors.gold, size: 28),
+                      ),
+                      const Gap(16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'SnapSweep Pro',
+                                  style: AppTypography.heading20(color: Colors.white),
+                                ),
+                                const Gap(8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.gold,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'ACTIVE',
+                                    style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Gap(4),
+                            Text(
+                              'Lifetime license unlocked | 100% ad-free',
+                              style: AppTypography.caption11(color: AppColors.lilac, letterSpacing: 0),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               }
 
-              return Column(
-                children: [
-                  _buildSettingsTile(
-                    context,
-                    icon: Icons.diamond_outlined,
-                    title: 'Remove Ads',
-                    subtitle: 'Upgrade to Google Play Ad-Free Pro',
-                    iconColor: Colors.purpleAccent,
-                    onTap: () {
-                      _showPurchaseSheet(context);
-                    },
-                  ),
-                  _buildSettingsTile(
-                    context,
-                    icon: Icons.restore_rounded,
-                    title: 'Restore Purchases',
-                    subtitle: 'Restore previous Google Play purchases',
-                    iconColor: Colors.teal,
-                    onTap: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Checking Google Play for previous purchases...')),
-                      );
-                      await BillingService.restorePurchases();
-                    },
-                  ),
-                ],
+              return Container(
+                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.ink2 : AppColors.ink,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.workspace_premium_rounded, color: AppColors.gold, size: 28),
+                    ),
+                    const Gap(14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Remove ads',
+                            style: AppTypography.heading20(color: Colors.white),
+                          ),
+                          const Gap(4),
+                          Text(
+                            'One-time purchase, clean forever',
+                            style: AppTypography.caption11(color: AppColors.lilac, letterSpacing: 0),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.ink,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () => _showPurchaseSheet(context),
+                      child: Text(
+                        'Go Pro',
+                        style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               );
+            },
+          ),
+
+          // Section: Appearance
+          _buildSectionHeader('Appearance', mutedColor),
+          _buildThemeTileWithSegments(
+            context,
+            themeProvider: themeProvider,
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            isDark: isDark,
+          ),
+
+          const Gap(20),
+
+          // Section: Purchases
+          _buildSectionHeader('Purchases', mutedColor),
+          _buildSettingsTile(
+            context,
+            icon: Icons.restore_rounded,
+            title: 'Restore Purchases',
+            subtitle: 'Restore previous Google Play purchases',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.showSnackBar(
+                SnackBar(
+                  backgroundColor: AppColors.ink,
+                  content: Text('Checking Google Play for previous purchases...', style: AppTypography.body15(color: Colors.white)),
+                ),
+              );
+              await BillingService.restorePurchases();
             },
           ),
 
           const Gap(20),
 
           // Section: Support
-          _buildSectionHeader('Support'),
+          _buildSectionHeader('Support', mutedColor),
           _buildSettingsTile(
             context,
             icon: Icons.star_outline_rounded,
-            title: 'Rate Us',
-            subtitle: 'Love SnapSweep? Leave a review!',
-            iconColor: Colors.orange,
+            title: 'Rate SnapSweep',
+            subtitle: 'Love SnapSweep? Leave a review on Google Play',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
             onTap: () async {
               final Uri playStoreUri = Uri.parse(
                 'https://play.google.com/store/apps/details?id=com.yousful.snapsweep',
@@ -127,17 +213,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } catch (_) {}
             },
           ),
-
           _buildSettingsTile(
             context,
             icon: Icons.share_outlined,
-            title: 'Share App',
-            subtitle: 'Share SnapSweep with friends and family',
-            iconColor: Colors.blue,
+            title: 'Share with Friends',
+            subtitle: 'Tell your friends about SnapSweep',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
             onTap: () async {
               try {
                 await Share.share(
-                  'Check out SnapSweep! A smart, ultra-fast gallery cleaner for Android. Download now: https://play.google.com/store/apps/details?id=com.yousful.snapsweep',
+                  'Check out SnapSweep! A smart, flat gallery cleaner for Android. Download now: https://play.google.com/store/apps/details?id=com.yousful.snapsweep',
                 );
               } catch (e) {
                 debugPrint('Share Error: $e');
@@ -147,13 +234,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Gap(20),
 
-          // Section: About
-          _buildSectionHeader('About'),
+          // Section: About & Legal
+          _buildSectionHeader('About', mutedColor),
           _buildSettingsTile(
             context,
-            icon: Icons.privacy_tip_outlined,
+            icon: Icons.shield_outlined,
             title: 'Privacy Policy',
-            iconColor: Colors.green,
+            subtitle: '100% on-device processing guarantee',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
             onTap: () {
               Navigator.push(
                 context,
@@ -170,7 +260,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             context,
             icon: Icons.description_outlined,
             title: 'Terms of Service',
-            iconColor: Colors.indigo,
+            subtitle: 'Standard software usage terms',
+            cardBg: cardBg,
+            textColor: textColor,
+            mutedColor: mutedColor,
             onTap: () {
               Navigator.push(
                 context,
@@ -184,27 +277,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          const Gap(30),
+          const Gap(28),
 
-          // App Version
+          // Version Footer
           Center(
             child: Column(
               children: [
                 Text(
                   'SnapSweep',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                  style: AppTypography.heading20(color: textColor),
                 ),
                 const Gap(4),
                 Text(
                   'Version 1.0.3 (Build 4)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                 ),
               ],
             ),
@@ -215,17 +301,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, Color mutedColor) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
+        style: AppTypography.caption11(color: mutedColor, letterSpacing: 1.0),
       ),
     );
   }
@@ -235,26 +316,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required IconData icon,
     required String title,
     String? subtitle,
-    required Color iconColor,
+    required Color cardBg,
+    required Color textColor,
+    required Color mutedColor,
     required VoidCallback onTap,
-    Widget? trailing,
   }) {
-    final theme = Theme.of(context);
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -262,38 +342,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
+                    color: AppColors.violet.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: iconColor, size: 22),
+                  child: Icon(icon, color: AppColors.violet, size: 20),
                 ),
-                const Gap(16),
+                const Gap(14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
+                        style: AppTypography.subheading17(color: textColor),
                       ),
                       if (subtitle != null) ...[
                         const Gap(2),
                         Text(
                           subtitle,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                          style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
                         ),
                       ],
                     ],
                   ),
                 ),
-                trailing ?? Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant, size: 20),
+                Icon(Icons.chevron_right_rounded, color: mutedColor, size: 20),
               ],
             ),
           ),
@@ -303,24 +376,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showPurchaseSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+
     showModalBottomSheet(
       context: context,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
-        final theme = Theme.of(context);
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 40,
+                  width: 44,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    color: mutedColor.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -328,32 +406,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.purpleAccent.withValues(alpha: 0.15),
+                    color: AppColors.gold.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.diamond_rounded, color: Colors.purpleAccent, size: 36),
+                  child: const Icon(Icons.workspace_premium_rounded, color: AppColors.gold, size: 40),
                 ),
                 const Gap(16),
                 Text(
-                  'Upgrade to SnapSweep Pro',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  'Unlock SnapSweep Pro',
+                  style: AppTypography.title30(color: textColor),
                 ),
-                const Gap(6),
+                const Gap(4),
                 Text(
-                  'Permanent Ad-Free Experience via Google Play',
-                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                  'Lifetime ad-free & full compression engine',
+                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                 ),
                 const Gap(20),
-                _buildBenefitRow(context, Icons.block_rounded, '100% Ad-Free across all screens'),
+                _buildBenefitRow(textColor, Icons.check_circle_rounded, 'Hardware-accelerated video compressor'),
                 const Gap(10),
-                _buildBenefitRow(context, Icons.speed_rounded, 'Priority background scanner engine'),
+                _buildBenefitRow(textColor, Icons.check_circle_rounded, 'Unlimited duplicate & burst photo cleaning'),
                 const Gap(10),
-                _buildBenefitRow(context, Icons.cloud_done_rounded, 'Permanent lifetime license linked to Google account'),
+                _buildBenefitRow(textColor, Icons.check_circle_rounded, '100% ad-free experience across all screens'),
+                const Gap(10),
+                _buildBenefitRow(textColor, Icons.check_circle_rounded, 'Permanent lifetime license linked to Google Play'),
                 const Gap(24),
-                FilledButton.icon(
+                FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.ink,
+                    minimumSize: const Size.fromHeight(52),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   onPressed: () async {
@@ -362,12 +444,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final success = await BillingService.buyRemoveAds();
                     if (!success) {
                       messenger.showSnackBar(
-                        const SnackBar(content: Text('Starting Google Play billing...')),
+                        SnackBar(
+                          backgroundColor: AppColors.ink,
+                          content: Text('Starting Google Play billing...', style: AppTypography.body15(color: Colors.white)),
+                        ),
                       );
                     }
                   },
-                  icon: const Icon(Icons.lock_open_rounded),
-                  label: const Text('Unlock with Google Play', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  child: Text(
+                    'Unlock SnapSweep Pro',
+                    style: AppTypography.button15(color: AppColors.ink),
+                  ),
+                ),
+                const Gap(10),
+                Text(
+                  'One-time purchase | Lifetime access | Restore anytime',
+                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                 ),
               ],
             ),
@@ -377,18 +469,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildBenefitRow(BuildContext context, IconData icon, String text) {
+  Widget _buildBenefitRow(Color textColor, IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.primary, size: 20),
+        Icon(icon, color: AppColors.violet, size: 18),
         const Gap(12),
         Expanded(
           child: Text(
             text,
-            style: TextStyle(
-              fontSize: 13,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            style: AppTypography.body15(color: textColor),
           ),
         ),
       ],
@@ -396,68 +485,276 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showThemeDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final themeProvider = context.read<ThemeProvider>();
+    ThemeMode tempSelected = themeProvider.themeMode;
+
     showModalBottomSheet(
       context: context,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
-        return Consumer<ThemeProvider>(
-          builder: (context, themeProvider, child) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
             return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Gap(12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: mutedColor.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                  const Gap(20),
-                  Text(
-                    'Choose Theme',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const Gap(16),
-                  RadioGroup<ThemeMode>(
-                    groupValue: themeProvider.themeMode,
-                    onChanged: (value) {
-                      if (value != null) {
-                        themeProvider.setThemeMode(value);
+                    const Gap(18),
+                    Text(
+                      'Choose theme',
+                      style: AppTypography.heading20(color: textColor),
+                    ),
+                    const Gap(18),
+                    _buildThemeOption(
+                      context,
+                      title: 'System default',
+                      mode: ThemeMode.system,
+                      current: tempSelected,
+                      textColor: textColor,
+                      mutedColor: mutedColor,
+                      onTap: () => setSheetState(() => tempSelected = ThemeMode.system),
+                    ),
+                    const Gap(10),
+                    _buildThemeOption(
+                      context,
+                      title: 'Light mode',
+                      mode: ThemeMode.light,
+                      current: tempSelected,
+                      textColor: textColor,
+                      mutedColor: mutedColor,
+                      onTap: () => setSheetState(() => tempSelected = ThemeMode.light),
+                    ),
+                    const Gap(10),
+                    _buildThemeOption(
+                      context,
+                      title: 'Dark mode',
+                      mode: ThemeMode.dark,
+                      current: tempSelected,
+                      textColor: textColor,
+                      mutedColor: mutedColor,
+                      onTap: () => setSheetState(() => tempSelected = ThemeMode.dark),
+                    ),
+                    const Gap(20),
+                    // Violet Apply Button (Page 27)
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.violet,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(52),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        themeProvider.setThemeMode(tempSelected);
                         Navigator.pop(context);
-                      }
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        RadioListTile<ThemeMode>(
-                          title: Text('System Default'),
-                          value: ThemeMode.system,
-                        ),
-                        RadioListTile<ThemeMode>(
-                          title: Text('Light Mode'),
-                          value: ThemeMode.light,
-                        ),
-                        RadioListTile<ThemeMode>(
-                          title: Text('Dark Mode'),
-                          value: ThemeMode.dark,
-                        ),
-                      ],
+                      },
+                      child: Text(
+                        'Apply',
+                        style: AppTypography.button15(color: Colors.white).copyWith(fontSize: 16),
+                      ),
                     ),
-                  ),
-                  const Gap(20),
-                ],
+                  ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildThemeTileWithSegments(
+    BuildContext context, {
+    required ThemeProvider themeProvider,
+    required Color cardBg,
+    required Color textColor,
+    required Color mutedColor,
+    required bool isDark,
+  }) {
+    final currentMode = themeProvider.themeMode;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.violet.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.palette_outlined, color: AppColors.violet, size: 20),
+              ),
+              const Gap(14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Theme',
+                      style: AppTypography.subheading17(color: textColor),
+                    ),
+                    const Gap(2),
+                    Text(
+                      'Choose your interface appearance',
+                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.tune_rounded, color: mutedColor, size: 20),
+                tooltip: 'More theme options',
+                onPressed: () => _showThemeDialog(context),
+              ),
+            ],
+          ),
+          const Gap(14),
+          // 3-Segment Switcher Pill: Auto | Light | Dark (Page 26)
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.ink : AppColors.lavender,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                _buildSegmentPill(
+                  label: 'Auto',
+                  isSelected: currentMode == ThemeMode.system,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    themeProvider.setThemeMode(ThemeMode.system);
+                  },
+                  textColor: textColor,
+                  mutedColor: mutedColor,
+                ),
+                _buildSegmentPill(
+                  label: 'Light',
+                  isSelected: currentMode == ThemeMode.light,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    themeProvider.setThemeMode(ThemeMode.light);
+                  },
+                  textColor: textColor,
+                  mutedColor: mutedColor,
+                ),
+                _buildSegmentPill(
+                  label: 'Dark',
+                  isSelected: currentMode == ThemeMode.dark,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    themeProvider.setThemeMode(ThemeMode.dark);
+                  },
+                  textColor: textColor,
+                  mutedColor: mutedColor,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentPill({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color textColor,
+    required Color mutedColor,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.violet : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AppTypography.meta13(
+                color: isSelected ? Colors.white : mutedColor,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption(
+    BuildContext context, {
+    required String title,
+    required ThemeMode mode,
+    required ThemeMode current,
+    required Color textColor,
+    required Color mutedColor,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = mode == current;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isSelected
+          ? (isDark ? AppColors.violet.withValues(alpha: 0.2) : AppColors.lilac)
+          : (isDark ? AppColors.ink : AppColors.lavender),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: AppTypography.subheading17(
+                  color: isSelected ? AppColors.violet : textColor,
+                ),
+              ),
+              if (isSelected)
+                const Icon(Icons.check_circle_rounded, color: AppColors.violet, size: 20)
+              else
+                Icon(Icons.circle_outlined, color: mutedColor, size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

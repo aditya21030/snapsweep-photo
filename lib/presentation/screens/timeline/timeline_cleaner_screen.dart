@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../providers/scan_provider.dart';
 
@@ -77,11 +79,35 @@ class TimelineCleanerScreen extends StatelessWidget {
         ? null
         : (List<_MonthlyBucket>.from(buckets)..sort((a, b) => b.totalBytes.compareTo(a.totalBytes))).first;
 
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.ink : AppColors.lavender;
+    final cardBg = isDark ? AppColors.ink2 : Colors.white;
+    final textColor = isDark ? Colors.white : AppColors.ink;
+    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
 
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Storage Time Machine'),
+        backgroundColor: bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_rounded, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Storage time machine',
+              style: AppTypography.heading20(color: textColor),
+            ),
+            Text(
+              '${allAssets.length} items | ${AppUtils.formatBytes(totalGalleryBytes)}',
+              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+            ),
+          ],
+        ),
       ),
       body: buckets.isEmpty
           ? Center(
@@ -91,23 +117,23 @@ class TimelineCleanerScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.deepPurple.withValues(alpha: 0.12),
+                        color: AppColors.gold.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.timeline_rounded, color: Colors.deepPurple, size: 48),
+                      child: const Icon(Icons.timeline_rounded, color: AppColors.gold, size: 48),
                     ),
                     const Gap(16),
                     Text(
                       'No Media Timeline Available',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: AppTypography.title30(color: textColor),
                     ),
                     const Gap(6),
                     Text(
                       'Scan your gallery to generate an interactive timeline history.',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: AppTypography.body15(color: mutedColor),
                     ),
                   ],
                 ),
@@ -116,109 +142,64 @@ class TimelineCleanerScreen extends StatelessWidget {
           : ListView(
               padding: EdgeInsets.fromLTRB(16, 8, 16, 40 + MediaQuery.paddingOf(context).bottom),
               children: [
-                // Heaviest Month Spotlight Card
+                // Heaviest Month Spotlight Card (Pages 17 & 47)
                 if (heaviestBucket != null && heaviestBucket.totalBytes > 0) ...[
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF654EA3), Color(0xFFEAAFC8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF654EA3).withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: isDark ? AppColors.ink2 : AppColors.ink,
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.25),
-                                shape: BoxShape.circle,
+                                color: AppColors.gold,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.history_toggle_off_rounded, color: Colors.white, size: 24),
+                              child: Text(
+                                'HEAVIEST MONTH',
+                                style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                              ),
                             ),
-                            const Gap(12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Heaviest Month Spotlight',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Peak storage consumption identified',
-                                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                                  ),
-                                ],
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: AppColors.ink,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () {
+                                HapticFeedback.selectionClick();
+                                context.push(
+                                  '/category-cleaner',
+                                  extra: {
+                                    'title': heaviestBucket.label,
+                                    'assets': heaviestBucket.assets,
+                                  },
+                                );
+                              },
+                              child: Text(
+                                'Clean month',
+                                style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 13),
                               ),
                             ),
                           ],
                         ),
                         const Gap(14),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    heaviestBucket.label,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const Gap(2),
-                                  Text(
-                                    '${heaviestBucket.assets.length} items   ${AppUtils.formatBytes(heaviestBucket.totalBytes)}',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                              FilledButton.tonal(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: const Color(0xFF654EA3),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () {
-                                  HapticFeedback.selectionClick();
-                                  context.push(
-                                    '/category-cleaner',
-                                    extra: {
-                                      'title': heaviestBucket.label,
-                                      'assets': heaviestBucket.assets,
-                                    },
-                                  );
-                                },
-                                child: const Text('Clean Month', style: TextStyle(fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
+                        Text(
+                          heaviestBucket.label,
+                          style: AppTypography.title30(color: Colors.white),
+                        ),
+                        const Gap(4),
+                        Text(
+                          '${AppUtils.formatBytes(heaviestBucket.totalBytes)} | ${heaviestBucket.assets.length} items',
+                          style: AppTypography.body15(color: AppColors.lilac),
                         ),
                       ],
                     ),
@@ -227,32 +208,31 @@ class TimelineCleanerScreen extends StatelessWidget {
                 ],
 
                 // Timeline Section Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Monthly Timeline (${buckets.length} months)',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Total: ${AppUtils.formatBytes(totalGalleryBytes)}',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Monthly breakdown (${buckets.length} months)',
+                        style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'Total: ${AppUtils.formatBytes(totalGalleryBytes)}',
+                        style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                      ),
+                    ],
+                  ),
                 ),
-                const Gap(12),
+                const Gap(10),
 
                 // Month Cards
                 for (final bucket in buckets) ...[
                   Material(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(24),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                       onTap: () {
                         HapticFeedback.selectionClick();
                         context.push(
@@ -266,10 +246,7 @@ class TimelineCleanerScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
-                          ),
+                          borderRadius: BorderRadius.circular(24),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,46 +260,45 @@ class TimelineCleanerScreen extends StatelessWidget {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF654EA3).withValues(alpha: 0.12),
-                                        shape: BoxShape.circle,
+                                        color: AppColors.violet.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: const Icon(
                                         Icons.calendar_today_rounded,
-                                        color: Color(0xFF654EA3),
+                                        color: AppColors.violet,
                                         size: 16,
                                       ),
                                     ),
                                     const Gap(10),
                                     Text(
                                       bucket.label,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      style: AppTypography.subheading17(color: textColor),
                                     ),
                                   ],
                                 ),
                                 Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF654EA3).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                        color: isDark ? AppColors.violetDeep : AppColors.lilac,
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Text(
                                         AppUtils.formatBytes(bucket.totalBytes),
-                                        style: const TextStyle(
-                                          color: Color(0xFF654EA3),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                                        style: AppTypography.meta13(
+                                          color: isDark ? AppColors.lilac : AppColors.ink,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                     const Gap(6),
-                                    const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+                                    Icon(Icons.chevron_right_rounded, color: mutedColor, size: 20),
                                   ],
                                 ),
                               ],
                             ),
-                            const Gap(10),
+                            const Gap(12),
 
                             // Relative Heat/Capacity Bar
                             ClipRRect(
@@ -330,8 +306,8 @@ class TimelineCleanerScreen extends StatelessWidget {
                               child: LinearProgressIndicator(
                                 value: (bucket.totalBytes / max(1, maxBytes)).clamp(0.04, 1.0),
                                 minHeight: 6,
-                                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                                color: const Color(0xFF654EA3),
+                                backgroundColor: isDark ? AppColors.ink : AppColors.lavender,
+                                color: AppColors.violet,
                               ),
                             ),
                             const Gap(12),
@@ -343,12 +319,12 @@ class TimelineCleanerScreen extends StatelessWidget {
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(12),
                                       child: AssetEntityImage(
                                         bucket.assets[i],
                                         isOriginal: false,
-                                        width: 54,
-                                        height: 54,
+                                        width: 52,
+                                        height: 52,
                                         fit: BoxFit.cover,
                                         thumbnailSize: const ThumbnailSize.square(150),
                                       ),
@@ -357,11 +333,7 @@ class TimelineCleanerScreen extends StatelessWidget {
                                 const Spacer(),
                                 Text(
                                   '${bucket.assets.length} items',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                                 ),
                               ],
                             ),

@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math' as math;
 import 'package:gap/gap.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
-import '../../../common/dashboard_card.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../providers/scan_provider.dart';
+import '../../../../core/utils/app_utils.dart';
 import '../../../../data/services/media_service.dart';
 
 class CleanerTab extends StatelessWidget {
@@ -20,115 +19,110 @@ class CleanerTab extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 90 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, 96 + MediaQuery.paddingOf(context).bottom),
         children: const [
-           Gap(16),
-           _HeaderSection(),
-           Gap(16),
-           _ProgressSection(),
-           _SmartCleanSection(),
-           _DashboardSection(),
-           _DebugLogSection(),
+          _TopBarSection(),
+          Gap(16),
+          _ScopeChipsSection(),
+          Gap(18),
+          _LiveScanningSection(),
+          _HeroReclaimableCard(),
+          Gap(24),
+          _QuickToolsSection(),
+          Gap(28),
+          _MoreToolsSection(),
+          Gap(20),
+          _TrashGuaranteeCard(),
+          Gap(12),
         ],
       ),
     );
   }
 }
 
-class _HeaderSection extends StatelessWidget {
-  const _HeaderSection();
+// ---------------------------------------------------------
+// 1. TOP BAR SECTION (Page 6 & 7)
+// ---------------------------------------------------------
+class _TopBarSection extends StatelessWidget {
+  const _TopBarSection();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark ? Colors.white : AppColors.ink;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              AppStrings.cleanerTitle,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
+            // SnapSweep Logo badge
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.ink2 : AppColors.ink,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF321A6B) : AppColors.lilac,
+                  width: 1.2,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 18,
+                    color: AppColors.gold,
+                  ),
+                ],
               ),
             ),
-            Selector<ScanProvider, bool>(
-              selector: (_, p) => p.isLoading,
-              builder: (context, isLoading, _) {
-                return IconButton.filledTonal(
-                  icon: Icon(
-                    isLoading ? Icons.hourglass_top_rounded : Icons.refresh_rounded,
-                    size: 20,
-                  ),
-                  onPressed: isLoading ? null : () => context.read<ScanProvider>().scan(force: true),
-                  tooltip: 'Rescan Gallery',
-                );
-              },
+            const Gap(10),
+            Text(
+              "SnapSweep",
+              style: AppTypography.heading20(
+                color: primaryTextColor,
+              ).copyWith(fontSize: 22),
             ),
           ],
         ),
-        const Gap(6),
-        Selector<ScanProvider, ({bool isLoading, int count, String size, ScanScope scope})>(
-          selector: (_, p) => (
-            isLoading: p.isLoading, 
-            count: p.allScreenshots.length, 
-            size: p.formattedTotalSize, 
-            scope: p.scanScope
-          ),
-          builder: (context, data, _) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  data.isLoading
-                      ? 'Scanning ${data.scope.label.toLowerCase()}...'
-                      : '${data.count} items found | ${data.size}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
+        Selector<ScanProvider, bool>(
+          selector: (_, p) => p.isLoading,
+          builder: (context, isLoading, _) {
+            return GestureDetector(
+              onTap: isLoading ? null : () {
+                HapticFeedback.selectionClick();
+                context.read<ScanProvider>().scan(force: true);
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.ink2 : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.lilac2,
                   ),
                 ),
-                const Gap(12),
-                // Modern Interactive Scan Scope Chips
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: ScanScope.values.length,
-                    separatorBuilder: (_, _) => const Gap(8),
-                    itemBuilder: (context, index) {
-                      final scope = ScanScope.values[index];
-                      final isSelected = scope == data.scope;
-                      return ChoiceChip(
-                        avatar: Icon(
-                          scope.icon,
-                          size: 16,
-                          color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+                child: Center(
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.violet,
+                          ),
+                        )
+                      : Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white : AppColors.ink,
                         ),
-                        label: Text(scope.label),
-                        selected: isSelected,
-                        onSelected: data.isLoading ? null : (selected) {
-                          if (selected) {
-                            HapticFeedback.selectionClick();
-                            context.read<ScanProvider>().setScanScope(scope);
-                          }
-                        },
-                        selectedColor: AppColors.primary,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 13,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        showCheckmark: false,
-                      );
-                    },
-                  ),
                 ),
-              ],
+              ),
             );
           },
         ),
@@ -137,624 +131,976 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-class _ProgressSection extends StatelessWidget {
-  const _ProgressSection();
+// ---------------------------------------------------------
+// 2. SCOPE CHIPS (Page 6 & 7)
+// ---------------------------------------------------------
+class _ScopeChipsSection extends StatelessWidget {
+  const _ScopeChipsSection();
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({bool isLoading, double progress, List<AssetEntity> recent, bool isFirstScan, String timer, String statusMessage})>(
-      selector: (_, p) => (
-         isLoading: p.isLoading, 
-         progress: p.progress, 
-         recent: List.of(p.recentScanned),
-         isFirstScan: p.isFirstScan,
-         timer: p.formattedScanDuration,
-         statusMessage: p.scanStatusMessage,
-      ),
-      builder: (context, data, child) {
-         if (!data.isLoading) return const SizedBox.shrink();
-         return Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                     Expanded(
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           Text(
-                             data.isFirstScan ? "Fast Scanning Gallery..." : "Scanning...", 
-                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)
-                           ),
-                           if (data.statusMessage.isNotEmpty)
-                             Text(
-                               data.statusMessage,
-                               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                             ),
-                         ],
-                       ),
-                     ),
-                     Text(
-                       "${(data.progress * 100).toInt()}%", 
-                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                         fontWeight: FontWeight.bold, 
-                         color: AppColors.primary
-                       )
-                     ),
-                  ],
-                ),
-                const Gap(10),
-                AnimatedScannerBar(progress: data.progress),
-                const Gap(12),
-                
-                if (data.recent.isNotEmpty)
-                  SizedBox(
-                    height: 36,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: data.recent.map((asset) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: AssetEntityImage(
-                              asset,
-                              width: 36, height: 36,
-                              fit: BoxFit.cover,
-                              thumbnailSize: const ThumbnailSize.square(80),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Selector<ScanProvider, ({bool isLoading, ScanScope scope})>(
+      selector: (_, p) => (isLoading: p.isLoading, scope: p.scanScope),
+      builder: (context, data, _) {
+        return SizedBox(
+          height: 38,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: ScanScope.values.length,
+            separatorBuilder: (_, _) => const Gap(8),
+            itemBuilder: (context, index) {
+              final scope = ScanScope.values[index];
+              final isSelected = scope == data.scope;
+
+              return GestureDetector(
+                onTap: data.isLoading ? null : () {
+                  HapticFeedback.selectionClick();
+                  context.read<ScanProvider>().setScanScope(scope);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.violet
+                        : (isDark ? AppColors.ink2 : Colors.white),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.violet
+                          : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5)),
                     ),
                   ),
-              ],
-            ),
-          );
-      },
-    );
-  }
-}
-
-class AnimatedScannerBar extends StatefulWidget {
-  final double progress;
-  const AnimatedScannerBar({super.key, required this.progress});
-
-  @override
-  State<AnimatedScannerBar> createState() => _AnimatedScannerBarState();
-}
-
-class _AnimatedScannerBarState extends State<AnimatedScannerBar> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-       vsync: this,
-       duration: const Duration(milliseconds: 1500),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-     return Container(
-        height: 18,
-        width: double.infinity,
-        decoration: BoxDecoration(
-           color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-           borderRadius: BorderRadius.circular(12),
-           border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2), 
-              width: 1
-           ),
-        ),
-        clipBehavior: Clip.hardEdge,
-        child: CustomPaint(
-           painter: _WaveProgressPainter(
-              progress: widget.progress,
-              animationValue: _controller,
-              color: AppColors.primary,
-           ),
-        ),
-     );
-  }
-}
-
-class _WaveProgressPainter extends CustomPainter {
-  final double progress;
-  final Animation<double> animationValue;
-  final Color color;
-
-  _WaveProgressPainter({
-    required this.progress,
-    required this.animationValue,
-    required this.color,
-  }) : super(repaint: animationValue);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0.0) return;
-
-    final Paint paint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final double width = size.width * progress;
-    final double waveHeight = 3.0; 
-    final double waveFrequency = 2.0; 
-
-    final Path path = Path();
-    path.moveTo(0, 0);
-    path.lineTo(width, 0);
-
-    for (double y = 0; y <= size.height; y++) {
-       double waveOffset = 0;
-       if (progress > 0.02 && progress < 0.98) {
-          waveOffset = math.sin((y / size.height * waveFrequency * math.pi * 2) + (animationValue.value * math.pi * 2)) * waveHeight;
-       }
-       path.lineTo(width + waveOffset, y);
-    }
-
-    path.lineTo(0, size.height);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_WaveProgressPainter oldDelegate) {
-     return oldDelegate.progress != progress || oldDelegate.animationValue != animationValue;
-  }
-}
-
-class _SmartCleanSection extends StatelessWidget {
-  const _SmartCleanSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({bool isLoading, int size, String formattedSize, List<AssetEntity> previews})>(
-      selector: (_, p) => (
-        isLoading: p.isLoading, 
-        size: p.smartCleanSize, 
-        formattedSize: p.formattedSmartCleanSize,
-        previews: p.smartCleanPreviews
-      ),
-      builder: (context, data, child) {
-         if (data.isLoading && data.size <= 0) return const SizedBox.shrink();
-
-         if (data.size <= 0) {
-             return Container(
-               margin: const EdgeInsets.only(bottom: 16),
-               padding: const EdgeInsets.all(18),
-               decoration: BoxDecoration(
-                 color: Theme.of(context).cardColor,
-                 borderRadius: BorderRadius.circular(20),
-                 border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-               ),
-               child: Row(
-                 children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 24),
-                    ),
-                    const Gap(14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Gallery Clean & Healthy", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          Text("No byte-for-byte exact duplicate copies found.", style: TextStyle(color: Colors.grey, fontSize: 13)),
-                        ],
+                  child: Center(
+                    child: Text(
+                      scope.label,
+                      style: AppTypography.meta13(
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? const Color(0xFFA49EBA) : AppColors.ink),
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
-                 ],
-               ),
-             );
-         }
-
-         return Container(
-           margin: const EdgeInsets.only(bottom: 16), 
-           padding: const EdgeInsets.all(20),
-           decoration: BoxDecoration(
-             gradient: const LinearGradient(
-               colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-               begin: Alignment.topLeft,
-               end: Alignment.bottomRight,
-             ),
-             borderRadius: BorderRadius.circular(24),
-             boxShadow: [
-               BoxShadow(
-                 color: const Color(0xFF6A11CB).withValues(alpha: 0.35),
-                 blurRadius: 12,
-                 offset: const Offset(0, 6),
-               ),
-             ],
-           ),
-           child: Column(
-             children: [
-               Row(
-                 children: [
-                   SizedBox(
-                     width: 70,
-                     height: 50,
-                     child: Stack(
-                       children: [
-                         if (data.previews.isEmpty)
-                            Container(
-                               padding: const EdgeInsets.all(10),
-                               decoration: BoxDecoration(
-                                 color: Colors.white.withValues(alpha: 0.2),
-                                 shape: BoxShape.circle,
-                               ),
-                               child: const Icon(Icons.auto_fix_high, color: Colors.white, size: 24),
-                            )
-                         else 
-                           ...List.generate(data.previews.length, (index) {
-                             return Positioned(
-                               left: index * 12.0,
-                               child: Container(
-                                 decoration: BoxDecoration(
-                                   borderRadius: BorderRadius.circular(16),
-                                   border: Border.all(color: Colors.white, width: 2),
-                                 ),
-                                 clipBehavior: Clip.antiAlias,
-                                 child: AssetEntityImage(
-                                     data.previews[index],
-                                     width: 40, height: 40,
-                                     fit: BoxFit.cover,
-                                     thumbnailSize: const ThumbnailSize.square(100),
-                                 ),
-                               ),
-                             );
-                           }).reversed, 
-                       ],
-                     ),
-                   ),
-                   const Gap(12),
-                   Expanded(
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Row(
-                           children: [
-                             const Text(
-                               "Exact Copies Clean",
-                               style: TextStyle(
-                                 color: Colors.white,
-                                 fontWeight: FontWeight.bold,
-                                 fontSize: 17,
-                               ),
-                             ),
-                             const Gap(8),
-                             Container(
-                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                               decoration: BoxDecoration(
-                                 color: Colors.greenAccent.withValues(alpha: 0.25),
-                                 borderRadius: BorderRadius.circular(6),
-                               ),
-                               child: const Text(
-                                 "SAFE",
-                                 style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold),
-                               ),
-                             )
-                           ],
-                         ),
-                         const Gap(4),
-                         Text(
-                           "Free up ${data.formattedSize} of exact clones",
-                           style: TextStyle(
-                             color: Colors.white.withValues(alpha: 0.9),
-                             fontSize: 13,
-                           ),
-                         ),
-                       ],
-                     ),
-                   ),
-                 ],
-               ),
-               const Gap(16),
-               SizedBox(
-                 width: double.infinity,
-                 child: FilledButton(
-                   onPressed: () {
-                     context.push('/smart-clean');
-                   },
-                   style: FilledButton.styleFrom(
-                     backgroundColor: Colors.white,
-                     foregroundColor: const Color(0xFF6A11CB),
-                     padding: const EdgeInsets.symmetric(vertical: 12),
-                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                   ),
-                   child: Text(
-                     "Review & Clean (${data.formattedSize})", 
-                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                   ),
-                 ),
-               ),
-             ],
-           ),
-         );
-      },
-    );
-  }
-}
-
-class _DashboardSection extends StatelessWidget {
-  const _DashboardSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({
-      bool isLoading,
-      int dupCount,
-      String dupSize,
-      int simCount,
-      String simSize,
-      int vidCount,
-      String vidSize,
-      int blurCount,
-      String blurSize,
-      int socialCount,
-      String socialSize,
-    })>(
-      selector: (_, p) => (
-        isLoading: p.isLoading,
-        dupCount: p.totalDuplicateCount,
-        dupSize: p.formattedDuplicateSize,
-        simCount: p.totalSimilarCount,
-        simSize: p.formattedSimilarSize,
-        vidCount: p.largeVideos.length,
-        vidSize: p.formattedLargeVideosSize,
-        blurCount: p.blurryPhotos.length,
-        blurSize: p.formattedBlurrySize,
-        socialCount: p.categories['Social & WhatsApp']?.length ?? 0,
-        socialSize: p.getFormattedCategorySize('Social & WhatsApp'),
-      ),
-      builder: (context, data, child) {
-        final provider = context.read<ScanProvider>();
-         final duplicatePreviews = provider.duplicateGroups
-             .take(4)
-             .map((group) => group.isNotEmpty ? group.first : null)
-             .whereType<AssetEntity>()
-             .toList();
-             
-         final similarPreviews = provider.similarGroups
-             .take(4)
-             .map((group) => group.isNotEmpty ? group.first : null)
-             .whereType<AssetEntity>()
-             .toList();
-             
-        return Column(
-          children: [
-            DashboardCard(
-              title: AppStrings.cardDuplicate,
-              count: provider.isLoading ? 'Scanning...' : '${provider.totalDuplicateCount} duplicates',
-              size: provider.isLoading ? '-' : '${provider.formattedDuplicateSize} recoverable',
-              icon: Icons.copy_rounded,
-              startColor: AppColors.duplicateCardStart, 
-              endColor: AppColors.duplicateCardEnd,
-              previewImages: provider.isLoading ? null : duplicatePreviews,
-              onTap: () {
-                if (provider.duplicateGroups.isNotEmpty) {
-                  context.push('/duplicates');
-                } else if (provider.isLoading) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Analyzing duplicate candidates... ready shortly.')),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No duplicate photos found in this scan area.')),
-                  );
-                }
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Burst & Best Shot Selector',
-              count: provider.isLoading ? 'Scanning...' : '${provider.similarGroups.length} burst clusters',
-              size: provider.isLoading ? '-' : '${provider.formattedSimilarSize} to review',
-              icon: Icons.burst_mode_rounded,
-              startColor: const Color(0xFFF2994A),
-              endColor: const Color(0xFFF2C94C), 
-              previewImages: provider.isLoading ? null : similarPreviews,
-              onTap: () {
-                if (provider.similarGroups.isNotEmpty) {
-                  context.push('/burst-cleaner');
-                } else if (provider.isLoading) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Analyzing burst and similar shots... ready shortly.')),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No burst sequences found in this scan area.')),
-                  );
-                }
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Large Videos',
-              count: provider.isLoading && provider.largeVideos.isEmpty ? 'Scanning...' : '${provider.largeVideos.length} videos found',
-              size: provider.isLoading && provider.largeVideos.isEmpty ? '-' : '${provider.formattedLargeVideosSize} total storage',
-              icon: Icons.video_library_rounded,
-              startColor: const Color(0xFFFF416C),
-              endColor: const Color(0xFFFF4B2B),
-              previewImages: provider.largeVideos.take(4).toList(),
-              onTap: () {
-                if (provider.largeVideos.isNotEmpty) {
-                  context.push('/large-videos');
-                } else if (provider.isLoading) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Scanning videos... ready shortly.')),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No large videos found in this scan area.')),
-                  );
-                }
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Blurry Photos',
-              count: provider.isLoading && provider.blurryPhotos.isEmpty ? 'Scanning...' : '${provider.blurryPhotos.length} blurry shots',
-              size: provider.isLoading && provider.blurryPhotos.isEmpty ? '-' : '${provider.formattedBlurrySize} to review',
-              icon: Icons.blur_on_rounded,
-              startColor: const Color(0xFF00B4DB),
-              endColor: const Color(0xFF0083B0),
-              previewImages: provider.blurryPhotos.take(4).toList(),
-              onTap: () {
-                if (provider.blurryPhotos.isNotEmpty) {
-                  context.push('/blurry-photos');
-                } else if (provider.isLoading) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Checking camera photos for blur... ready shortly.')),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No blurry photos detected in this scan area.')),
-                  );
-                }
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'WhatsApp & Social Clean',
-              count: provider.isLoading && (provider.categories['Social & WhatsApp']?.isEmpty ?? true)
-                  ? 'Scanning...'
-                  : '${data.socialCount} messaging files',
-              size: provider.isLoading && (provider.categories['Social & WhatsApp']?.isEmpty ?? true)
-                  ? '-'
-                  : '${data.socialSize} to clean',
-              icon: Icons.forum_rounded,
-              startColor: const Color(0xFF0F9D58),
-              endColor: const Color(0xFF00796B),
-              previewImages: (provider.categories['Social & WhatsApp'] ?? []).take(4).toList(),
-              onTap: () {
-                context.push('/messaging-cleaner');
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Compress & Save',
-              count: provider.isLoading && provider.largeVideos.isEmpty
-                  ? 'Scanning...'
-                  : '${provider.largeVideos.length} heavy videos',
-              size: provider.isLoading && provider.largeVideos.isEmpty
-                  ? '-'
-                  : 'Save up to 80% space',
-              icon: Icons.compress_rounded,
-              startColor: const Color(0xFF8E2DE2),
-              endColor: const Color(0xFF4A00E0),
-              previewImages: provider.largeVideos.take(4).toList(),
-              onTap: () {
-                context.push('/media-compressor');
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Screenshot Expiry Cleaner',
-              count: provider.isLoading && (provider.categories['Screenshots']?.isEmpty ?? true)
-                  ? 'Scanning...'
-                  : '${(provider.categories['Screenshots'] ?? []).length} screenshots',
-              size: provider.isLoading && (provider.categories['Screenshots']?.isEmpty ?? true)
-                  ? '-'
-                  : '${provider.getFormattedCategorySize('Screenshots')} to review',
-              icon: Icons.screenshot_rounded,
-              startColor: const Color(0xFF2F80ED),
-              endColor: const Color(0xFF56CCF2),
-              previewImages: (provider.categories['Screenshots'] ?? []).take(4).toList(),
-              onTap: () {
-                context.push('/screenshot-cleaner');
-              },
-            ),
-            const Gap(14),
-            DashboardCard(
-              title: 'Storage Time Machine',
-              count: provider.isLoading && provider.allScreenshots.isEmpty
-                  ? 'Scanning...'
-                  : 'Monthly History & Peaks',
-              size: provider.isLoading && provider.allScreenshots.isEmpty
-                  ? '-'
-                  : '${provider.formattedTotalSize} timeline',
-              icon: Icons.history_toggle_off_rounded,
-              startColor: const Color(0xFF654EA3),
-              endColor: const Color(0xFFEAAFC8),
-              previewImages: provider.allScreenshots.take(4).toList(),
-              onTap: () {
-                context.push('/storage-timeline');
-              },
-            ),
-          ],
+                  ),
+                ),
+              );
+            },
+          ),
         );
       },
     );
   }
 }
 
-class _DebugLogSection extends StatelessWidget {
-  const _DebugLogSection();
+// ---------------------------------------------------------
+// 3. LIVE SCANNING PROGRESS SECTION (When scan is active)
+// ---------------------------------------------------------
+class _LiveScanningSection extends StatelessWidget {
+  const _LiveScanningSection();
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({bool isLoading, String logs})>(
-      selector: (_, p) => (isLoading: p.isLoading, logs: p.debugLogs),
+    return Selector<ScanProvider, ({bool isLoading, double progress, String message, List<AssetEntity> recent})>(
+      selector: (_, p) => (
+        isLoading: p.isLoading,
+        progress: p.progress,
+        message: p.scanStatusMessage,
+        recent: List.of(p.recentScanned),
+      ),
       builder: (context, data, _) {
-        if (!data.isLoading && data.logs.isNotEmpty) {
-            return Padding(
-             padding: const EdgeInsets.symmetric(vertical: 20),
-             child: Center(
-               child: TextButton.icon(
-                  icon: const Icon(Icons.bug_report, size: 16),
-                  label: const Text("View Scan Stats"),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text("Scan Diagnostics"),
-                        content: SingleChildScrollView(
-                          child: SelectableText(data.logs), 
+        if (!data.isLoading) return const SizedBox.shrink();
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final cardBg = isDark ? AppColors.ink2 : Colors.white;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.violet.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    data.message.isEmpty ? "Scanning gallery..." : data.message,
+                    style: AppTypography.body15(
+                      color: isDark ? Colors.white : AppColors.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    "${(data.progress * 100).toInt()}%",
+                    style: AppTypography.heading20(color: AppColors.violet),
+                  ),
+                ],
+              ),
+              const Gap(10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: data.progress.clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                ),
+              ),
+              if (data.recent.isNotEmpty) ...[
+                const Gap(12),
+                SizedBox(
+                  height: 36,
+                  child: Row(
+                    children: data.recent.take(6).map((asset) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AssetEntityImage(
+                            asset,
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                            thumbnailSize: const ThumbnailSize.square(80),
+                          ),
                         ),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 4. HERO RECLAIMABLE STORAGE CARD (Page 6 / 36)
+// ---------------------------------------------------------
+class _HeroReclaimableCard extends StatelessWidget {
+  const _HeroReclaimableCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ScanProvider, ({
+      bool isLoading,
+      int totalItems,
+      String reclaimableSize,
+      String dupSize,
+      String vidSize,
+      String otherSize,
+      int smartCleanBytes,
+    })>(
+      selector: (_, p) {
+        final totalReclaim = p.duplicateSize + p.largeVideosSize;
+        return (
+          isLoading: p.isLoading,
+          totalItems: p.totalDuplicateCount + p.largeVideos.length,
+          reclaimableSize: totalReclaim > 0
+              ? AppUtils.formatBytes(totalReclaim)
+              : p.formattedSmartCleanSize,
+          dupSize: p.formattedDuplicateSize,
+          vidSize: p.formattedLargeVideosSize,
+          otherSize: p.formattedBlurrySize,
+          smartCleanBytes: p.smartCleanSize,
+        );
+      },
+      builder: (context, data, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final heroBg = isDark ? const Color(0xFF0F0426) : AppColors.ink;
+
+        return Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: heroBg,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top label and graphic placeholder
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "RECLAIMABLE NOW",
+                        style: AppTypography.caption11(
+                          color: AppColors.lilac,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const Gap(8),
+                      Text(
+                        data.isLoading ? "..." : data.reclaimableSize,
+                        style: AppTypography.display68(
+                          color: Colors.white,
+                        ).copyWith(fontSize: 48),
+                      ),
+                      const Gap(4),
+                      Text(
+                        data.isLoading
+                            ? "Analyzing gallery..."
+                            : "${data.totalItems} items to review",
+                        style: AppTypography.body15(
+                          color: const Color(0xFFA49EBA),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Stylized Illustration Placeholder (Page 1 / Page 6)
+                  Container(
+                    width: 76,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: AppColors.lilac,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            width: 14,
+                            height: 14,
+                            decoration: const BoxDecoration(
+                              color: AppColors.gold,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              color: AppColors.violet,
+                              borderRadius: BorderRadius.vertical(
+                                bottom: Radius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const Gap(20),
+
+              // Segment Progress Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Container(
+                        height: 6,
+                        color: AppColors.violet,
+                      ),
+                    ),
+                    const Gap(3),
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        height: 6,
+                        color: AppColors.gold,
+                      ),
+                    ),
+                    const Gap(3),
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        height: 6,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Gap(10),
+
+              // Segment Sub-labels
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Duplicates ${data.dupSize}",
+                    style: AppTypography.meta13(
+                      color: const Color(0xFFA49EBA),
+                    ),
+                  ),
+                  Text(
+                    "Videos ${data.vidSize}",
+                    style: AppTypography.meta13(
+                      color: const Color(0xFFA49EBA),
+                    ),
+                  ),
+                  Text(
+                    "Other ${data.otherSize}",
+                    style: AppTypography.meta13(
+                      color: const Color(0xFFA49EBA),
+                    ),
+                  ),
+                ],
+              ),
+
+              const Gap(22),
+
+              // Review and Clean Gold CTA Button (The One Thing to Act On)
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    if (data.smartCleanBytes > 0) {
+                      context.push('/smart-clean');
+                    } else {
+                      context.push('/duplicates');
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.ink,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Review and clean",
+                        style: AppTypography.button15(color: AppColors.ink)
+                            .copyWith(fontSize: 16),
+                      ),
+                      const Gap(10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.ink,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "SAFE",
+                          style: AppTypography.caption11(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 5. QUICK TOOLS SECTION (Page 6 / 36)
+// ---------------------------------------------------------
+class _QuickToolsSection extends StatelessWidget {
+  const _QuickToolsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark ? Colors.white : AppColors.ink;
+
+    return Selector<ScanProvider, ({
+      bool isLoading,
+      int dupCount,
+      String dupSize,
+      int burstCount,
+      String burstSize,
+      int blurCount,
+      String blurSize,
+    })>(
+      selector: (_, p) => (
+        isLoading: p.isLoading,
+        dupCount: p.totalDuplicateCount,
+        dupSize: p.formattedDuplicateSize,
+        burstCount: p.similarGroups.length,
+        burstSize: p.formattedSimilarSize,
+        blurCount: p.blurryPhotos.length,
+        blurSize: p.formattedBlurrySize,
+      ),
+      builder: (context, data, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Quick tools",
+                  style: AppTypography.heading20(color: primaryTextColor),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "8 tools",
+                    style: AppTypography.caption11(
+                      color: isDark ? AppColors.lilac : AppColors.violet,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Gap(14),
+
+            // 2x2 Grid for Exact Duplicates & Burst
+            Row(
+              children: [
+                // Exact Duplicates (Solid Violet Card)
+                Expanded(
+                  child: _buildSolidToolCard(
+                    bg: AppColors.violet,
+                    textColor: Colors.white,
+                    subtextColor: Colors.white.withValues(alpha: 0.8),
+                    icon: Icons.copy_rounded,
+                    number: data.isLoading ? "..." : "${data.dupCount}",
+                    title: "Exact duplicates",
+                    subtitle: "${data.dupSize} safe to free",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/duplicates');
+                    },
+                  ),
+                ),
+                const Gap(12),
+
+                // Burst Best Shot (Solid Gold Card)
+                Expanded(
+                  child: _buildSolidToolCard(
+                    bg: AppColors.gold,
+                    textColor: AppColors.ink,
+                    subtextColor: AppColors.ink.withValues(alpha: 0.75),
+                    icon: Icons.burst_mode_rounded,
+                    number: data.isLoading ? "..." : "${data.burstCount}",
+                    title: "Burst - best shot",
+                    subtitle: "${data.burstSize} to review",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/burst-cleaner');
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const Gap(12),
+
+            // Blurry Photos (Wide Card)
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                context.push('/blurry-photos');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.ink2 : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : AppColors.lilac2.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.blur_on_rounded,
+                        size: 24,
+                        color: AppColors.violet,
+                      ),
+                    ),
+                    const Gap(14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Blurry photos",
+                            style: AppTypography.heading20(
+                              color: primaryTextColor,
+                            ).copyWith(fontSize: 16),
+                          ),
+                          const Gap(2),
+                          Text(
+                            data.isLoading
+                                ? "Analyzing camera roll..."
+                                : "${data.blurCount} shots | ${data.blurSize} to review",
+                            style: AppTypography.meta13(
+                              color: isDark
+                                  ? const Color(0xFFA49EBA)
+                                  : const Color(0xFF5F567A),
+                            ),
+                          ),
                         ],
                       ),
-                    );
-                  },
-               ),
-             ),
-           );
-        }
-        return const SizedBox.shrink();
-      }
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSolidToolCard({
+    required Color bg,
+    required Color textColor,
+    required Color subtextColor,
+    required IconData icon,
+    required String number,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        height: 170,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, size: 24, color: textColor),
+                Icon(Icons.arrow_outward_rounded, size: 20, color: textColor),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  number,
+                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 32),
+                ),
+                const Gap(2),
+                Text(
+                  title,
+                  style: AppTypography.body15(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Gap(2),
+                Text(
+                  subtitle,
+                  style: AppTypography.meta13(color: subtextColor),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 6. MORE TOOLS SECTION (Page 7 / 37)
+// ---------------------------------------------------------
+class _MoreToolsSection extends StatelessWidget {
+  const _MoreToolsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark ? Colors.white : AppColors.ink;
+
+    return Selector<ScanProvider, ({
+      bool isLoading,
+      int vidCount,
+      String vidSize,
+      int socialCount,
+      String socialSize,
+      int screenshotCount,
+      String screenshotSize,
+      int totalItems,
+      String totalSize,
+    })>(
+      selector: (_, p) => (
+        isLoading: p.isLoading,
+        vidCount: p.largeVideos.length,
+        vidSize: p.formattedLargeVideosSize,
+        socialCount: p.categories['Social & WhatsApp']?.length ?? 0,
+        socialSize: p.getFormattedCategorySize('Social & WhatsApp'),
+        screenshotCount: p.categories['Screenshots']?.length ?? 0,
+        screenshotSize: p.getFormattedCategorySize('Screenshots'),
+        totalItems: p.allScreenshots.length,
+        totalSize: p.formattedTotalSize,
+      ),
+      builder: (context, data, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "CLEANER",
+                      style: AppTypography.caption11(
+                        color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const Gap(2),
+                    Text(
+                      "More tools",
+                      style: AppTypography.heading20(color: primaryTextColor),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "6 OF 8",
+                    style: AppTypography.caption11(
+                      color: isDark ? AppColors.lilac : AppColors.violet,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Gap(14),
+
+            // Row 1: Large videos & Compress and save
+            Row(
+              children: [
+                // Large videos (Deep Ink card)
+                Expanded(
+                  child: _buildMoreToolCard(
+                    context: context,
+                    bg: isDark ? const Color(0xFF0F0426) : AppColors.ink,
+                    textColor: Colors.white,
+                    subtextColor: const Color(0xFFA49EBA),
+                    iconContainerBg: AppColors.gold,
+                    iconColor: AppColors.ink,
+                    icon: Icons.videocam_rounded,
+                    number: data.isLoading ? "..." : "${data.vidCount}",
+                    title: "Large videos",
+                    subtitle: "${data.vidSize} total",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/large-videos');
+                    },
+                  ),
+                ),
+                const Gap(12),
+
+                // Compress and save (Lilac Tinted Card)
+                Expanded(
+                  child: _buildMoreToolCard(
+                    context: context,
+                    bg: isDark ? const Color(0xFF200F48) : AppColors.lilac,
+                    textColor: isDark ? Colors.white : AppColors.ink,
+                    subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                    iconContainerBg: AppColors.violet,
+                    iconColor: Colors.white,
+                    icon: Icons.compress_rounded,
+                    number: "80%",
+                    title: "Compress and save",
+                    subtitle: "Up to, per video",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/media-compressor');
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const Gap(12),
+
+            // Row 2: WhatsApp & social + Screenshot expiry
+            Row(
+              children: [
+                // WhatsApp and social (Violet Card)
+                Expanded(
+                  child: _buildMoreToolCard(
+                    context: context,
+                    bg: AppColors.violet,
+                    textColor: Colors.white,
+                    subtextColor: Colors.white.withValues(alpha: 0.8),
+                    iconContainerBg: Colors.white,
+                    iconColor: AppColors.violet,
+                    icon: Icons.chat_bubble_rounded,
+                    number: data.isLoading ? "..." : "${data.socialCount}",
+                    title: "WhatsApp and social",
+                    subtitle: "${data.socialSize} to clean",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/messaging-cleaner');
+                    },
+                  ),
+                ),
+                const Gap(12),
+
+                // Screenshot expiry (Light Card / Ink2)
+                Expanded(
+                  child: _buildMoreToolCard(
+                    context: context,
+                    bg: isDark ? AppColors.ink2 : Colors.white,
+                    textColor: isDark ? Colors.white : AppColors.ink,
+                    subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                    iconContainerBg: AppColors.gold,
+                    iconColor: AppColors.ink,
+                    icon: Icons.phone_android_rounded,
+                    number: data.isLoading ? "..." : "${data.screenshotCount}",
+                    title: "Screenshot expiry",
+                    subtitle: "Older than 30 days",
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      context.push('/screenshot-cleaner');
+                    },
+                    hasBorder: !isDark,
+                  ),
+                ),
+              ],
+            ),
+
+            const Gap(12),
+
+            // Storage Time Machine (Wide Card)
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                context.push('/storage-timeline');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.ink2 : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : AppColors.lilac2.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F0426) : AppColors.ink,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.schedule_rounded,
+                        size: 22,
+                        color: AppColors.gold,
+                      ),
+                    ),
+                    const Gap(14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Storage time machine",
+                            style: AppTypography.heading20(
+                              color: primaryTextColor,
+                            ).copyWith(fontSize: 16),
+                          ),
+                          const Gap(2),
+                          Text(
+                            "Monthly history and peaks",
+                            style: AppTypography.meta13(
+                              color: isDark
+                                  ? const Color(0xFFA49EBA)
+                                  : const Color(0xFF5F567A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMoreToolCard({
+    required BuildContext context,
+    required Color bg,
+    required Color textColor,
+    required Color subtextColor,
+    required Color iconContainerBg,
+    required Color iconColor,
+    required IconData icon,
+    required String number,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool hasBorder = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        height: 170,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(24),
+          border: hasBorder
+              ? Border.all(color: AppColors.lilac2.withValues(alpha: 0.5))
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: iconContainerBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 18, color: iconColor),
+                ),
+                Icon(Icons.arrow_outward_rounded, size: 18, color: textColor),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  number,
+                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                ),
+                const Gap(2),
+                Text(
+                  title,
+                  style: AppTypography.body15(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Gap(2),
+                Text(
+                  subtitle,
+                  style: AppTypography.meta13(color: subtextColor),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 7. TRASH GUARANTEE CARD (Page 7 / 37)
+// ---------------------------------------------------------
+class _TrashGuaranteeCard extends StatelessWidget {
+  const _TrashGuaranteeCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.shield_outlined,
+            size: 20,
+            color: AppColors.violet,
+          ),
+          const Gap(12),
+          Expanded(
+            child: Text(
+              "Every delete moves to Trash. Restore within 30 days.",
+              style: AppTypography.meta13(
+                color: isDark ? Colors.white : AppColors.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
