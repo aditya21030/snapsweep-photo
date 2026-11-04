@@ -25,9 +25,9 @@ android {
     defaultConfig {
         applicationId = "com.yousful.snapsweep"
         minSdk = flutter.minSdkVersion
-        targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.4"
+        targetSdk = 36
+        versionCode = 6
+        versionName = "1.0.5"
     }
 
     packaging {
