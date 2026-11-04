@@ -289,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Gap(4),
                 Text(
-                  'Version 1.0.6 (Build 7)',
+                  'Version 1.0.7 (Build 8)',
                   style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
                 ),
               ],
