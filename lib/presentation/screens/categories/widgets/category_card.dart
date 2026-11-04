@@ -70,17 +70,16 @@ class CategoryCard extends StatelessWidget {
             onTap();
           },
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(14.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Top Row: Icon pill + Size pill
+                // Top Row: Category Icon + Size Pill
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
                         color: iconBg,
                         shape: BoxShape.circle,
@@ -88,7 +87,7 @@ class CategoryCard extends StatelessWidget {
                       child: Icon(
                         _getCategoryIcon(title),
                         color: textColor,
-                        size: 18,
+                        size: 16,
                       ),
                     ),
                     if (size != null && size!.isNotEmpty)
@@ -100,48 +99,58 @@ class CategoryCard extends StatelessWidget {
                         ),
                         child: Text(
                           size!,
-                          style: AppTypography.caption11(color: textColor, letterSpacing: 0),
+                          style: AppTypography.caption11(color: textColor, letterSpacing: 0, fontWeight: FontWeight.w600),
                         ),
                       ),
                   ],
                 ),
+                const Gap(10),
 
-                // Center Thumbnail Preview
-                if (thumbnail != null)
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: SizedBox(
-                        width: 72,
-                        height: 72,
-                        child: AssetEntityImage(
-                          thumbnail!,
-                          isOriginal: false,
-                          thumbnailSize: const ThumbnailSize.square(180),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
+                // Generous, prominent photo preview
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: double.infinity,
+                      color: iconBg.withValues(alpha: 0.12),
+                      child: thumbnail != null
+                          ? AssetEntityImage(
+                              thumbnail!,
+                              isOriginal: false,
+                              thumbnailSize: const ThumbnailSize.square(320),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                            )
+                          : Center(
+                              child: Icon(
+                                _getCategoryIcon(title),
+                                size: 36,
+                                color: textColor.withValues(alpha: 0.35),
+                              ),
+                            ),
                     ),
-                  )
-                else
-                  const Gap(48),
+                  ),
+                ),
+                const Gap(10),
 
-                // Bottom Titles
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.subheading17(color: textColor),
-                    ),
-                    const Gap(2),
-                    Text(
-                      count,
-                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w500),
-                    ),
-                  ],
+                // Bottom Titles: Clean 2-line wrapping so full name is visible
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.body15(
+                    color: textColor,
+                    fontWeight: FontWeight.bold,
+                  ).copyWith(height: 1.15),
+                ),
+                const Gap(2),
+                Text(
+                  count,
+                  style: AppTypography.caption11(
+                    color: mutedColor,
+                    letterSpacing: 0,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),

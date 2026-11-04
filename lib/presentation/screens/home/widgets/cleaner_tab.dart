@@ -19,7 +19,7 @@ class CleanerTab extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 96 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, 130 + MediaQuery.paddingOf(context).bottom),
         children: const [
           _TopBarSection(),
           Gap(16),
@@ -61,22 +61,23 @@ class _TopBarSection extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.ink2 : AppColors.ink,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF321A6B) : AppColors.lilac,
-                  width: 1.2,
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    size: 18,
-                    color: AppColors.gold,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.violet.withValues(alpha: 0.22),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/app_icon_new.png',
+                  width: 38,
+                  height: 38,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const Gap(10),
@@ -88,13 +89,14 @@ class _TopBarSection extends StatelessWidget {
             ),
           ],
         ),
-        Selector<ScanProvider, bool>(
-          selector: (_, p) => p.isLoading,
-          builder: (context, isLoading, _) {
-            return GestureDetector(
-              onTap: isLoading ? null : () {
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Trash / Recovery quick button
+            GestureDetector(
+              onTap: () {
                 HapticFeedback.selectionClick();
-                context.read<ScanProvider>().scan(force: true);
+                context.push('/trash');
               },
               child: Container(
                 width: 40,
@@ -107,24 +109,54 @@ class _TopBarSection extends StatelessWidget {
                   ),
                 ),
                 child: Center(
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.violet,
-                          ),
-                        )
-                      : Icon(
-                          Icons.refresh_rounded,
-                          size: 20,
-                          color: isDark ? Colors.white : AppColors.ink,
-                        ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: isDark ? const Color(0xFFFF7A88) : AppColors.trashRedLight,
+                  ),
                 ),
               ),
-            );
-          },
+            ),
+            const Gap(8),
+            Selector<ScanProvider, bool>(
+              selector: (_, p) => p.isLoading,
+              builder: (context, isLoading, _) {
+                return GestureDetector(
+                  onTap: isLoading ? null : () {
+                    HapticFeedback.selectionClick();
+                    context.read<ScanProvider>().scan(force: true);
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.ink2 : Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.lilac2,
+                      ),
+                    ),
+                    child: Center(
+                      child: isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.violet,
+                              ),
+                            )
+                          : Icon(
+                              Icons.refresh_rounded,
+                              size: 20,
+                              color: isDark ? Colors.white : AppColors.ink,
+                            ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ],
     );
@@ -706,8 +738,8 @@ class _QuickToolsSection extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
-        height: 170,
+        padding: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(minHeight: 162),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(24),
@@ -723,16 +755,19 @@ class _QuickToolsSection extends StatelessWidget {
                 Icon(Icons.arrow_outward_rounded, size: 20, color: textColor),
               ],
             ),
+            const Gap(12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   number,
-                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 32),
+                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
                 ),
                 const Gap(2),
                 Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.body15(
                     color: textColor,
                     fontWeight: FontWeight.w700,
@@ -741,6 +776,8 @@ class _QuickToolsSection extends StatelessWidget {
                 const Gap(2),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.meta13(color: subtextColor),
                 ),
               ],
@@ -1009,8 +1046,8 @@ class _MoreToolsSection extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
-        height: 170,
+        padding: const EdgeInsets.all(16),
+        constraints: const BoxConstraints(minHeight: 162),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(24),
@@ -1037,6 +1074,7 @@ class _MoreToolsSection extends StatelessWidget {
                 Icon(Icons.arrow_outward_rounded, size: 18, color: textColor),
               ],
             ),
+            const Gap(12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1047,6 +1085,8 @@ class _MoreToolsSection extends StatelessWidget {
                 const Gap(2),
                 Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.body15(
                     color: textColor,
                     fontWeight: FontWeight.w700,
@@ -1055,6 +1095,8 @@ class _MoreToolsSection extends StatelessWidget {
                 const Gap(2),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.meta13(color: subtextColor),
                 ),
               ],

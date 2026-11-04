@@ -17,7 +17,7 @@
         android:textStyle="bold"
         android:lineSpacingExtra="2dp" />
 
-    <View
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />

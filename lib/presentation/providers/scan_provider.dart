@@ -168,6 +168,17 @@ class ScanProvider extends ChangeNotifier {
   int _largeVideosSize = 0;
   int get largeVideosSize => _largeVideosSize;
   String get formattedLargeVideosSize => AppUtils.formatBytes(_largeVideosSize);
+
+  // Trashed items tracking for this session
+  int _sessionTrashedCount = 0;
+  int get sessionTrashedCount => _sessionTrashedCount;
+
+  int _sessionTrashedBytes = 0;
+  int get sessionTrashedBytes => _sessionTrashedBytes;
+  String get formattedSessionTrashedBytes => AppUtils.formatBytes(_sessionTrashedBytes);
+
+  final List<Map<String, dynamic>> _sessionTrashedItems = [];
+  List<Map<String, dynamic>> get sessionTrashedItems => List.unmodifiable(_sessionTrashedItems);
   bool _isScanningVideos = false;
 
   // Persistent Cache: key = asset.id, value = {category, md5, dHash, size, is_blurry}
@@ -1029,6 +1040,20 @@ class ScanProvider extends ChangeNotifier {
     if (ids.isEmpty) return;
     final Set<String> idsToRemove = ids.toSet();
 
+    for (final id in ids) {
+      final size = _assetSizes[id] ?? 0;
+      _sessionTrashedBytes += size;
+      _sessionTrashedCount++;
+      _sessionTrashedItems.insert(0, {
+        'id': id,
+        'size': size,
+        'time': DateTime.now(),
+      });
+      if (_sessionTrashedItems.length > 100) {
+        _sessionTrashedItems.removeLast();
+      }
+    }
+
     _allScreenshots.removeWhere((a) => idsToRemove.contains(a.id));
 
     for (var id in idsToRemove) {
@@ -1112,15 +1137,16 @@ class ScanProvider extends ChangeNotifier {
   Future<void> _refineCategoriesWithML(List<AssetEntity> items, int sessionId) async {
     if (items.isEmpty) return;
 
-    // Hard cap candidate count to prevent CPU/memory saturation
-    final candidates = items.take(40).toList();
+    // Process up to 150 candidate photos in smooth background chunks
+    final candidates = items.take(150).toList();
     bool anyChanged = false;
+    int processedSinceNotify = 0;
 
     for (final asset in candidates) {
       if (_scanSessionId != sessionId) return;
 
       // Yield time to the UI thread to ensure 60/120 fps smoothness
-      await Future.delayed(const Duration(milliseconds: 60));
+      await Future.delayed(const Duration(milliseconds: 15));
       if (_scanSessionId != sessionId) return;
 
       final albumName = _assetAlbumMap[asset.id];
@@ -1131,10 +1157,18 @@ class ScanProvider extends ChangeNotifier {
       if (detectedCat != 'Others') {
         _addAssetToCategory(detectedCat, asset);
         anyChanged = true;
+        processedSinceNotify++;
       }
 
       if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
       _scanCache[asset.id]!['category'] = detectedCat;
+
+      // Periodically update UI every 10 categorized items
+      if (processedSinceNotify >= 10 && _scanSessionId == sessionId) {
+        processedSinceNotify = 0;
+        _recalculateCategorySizes();
+        notifyListeners();
+      }
     }
 
     if (anyChanged && _scanSessionId == sessionId) {

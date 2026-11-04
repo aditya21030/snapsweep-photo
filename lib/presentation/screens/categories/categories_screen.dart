@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -72,6 +73,7 @@ class CategoriesScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -82,6 +84,30 @@ class CategoriesScreen extends StatelessWidget {
                               child: Text(
                                 'ORGANIZED GALLERY',
                                 style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                context.push('/trash');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.delete_outline_rounded, color: AppColors.gold, size: 14),
+                                    const Gap(4),
+                                    Text(
+                                      'Trash',
+                                      style: AppTypography.caption11(color: Colors.white, letterSpacing: 0.5),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -110,7 +136,7 @@ class CategoriesScreen extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 0.95,
+                    childAspectRatio: 0.78,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {

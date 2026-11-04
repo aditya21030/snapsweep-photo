@@ -184,22 +184,10 @@ class CategorizationService {
       if (combined.contains(kw)) return 'Food & Dining';
     }
 
-    // 8. Camera Roll & Personal Photos (DCIM, Camera, IMG_..., DSC_...)
-    if (album.contains('camera') || album.contains('dcim') || album.contains('100media') ||
-        path.contains('camera') || path.contains('dcim') ||
-        title.startsWith('img_') || title.startsWith('dsc_') || title.startsWith('p_') ||
-        title.startsWith('mvimg_') || album.contains('selfie') || album.contains('portrait')) {
+    // 8. Explicit Portraits & Selfies album or title matches
+    if (album.contains('selfie') || album.contains('portrait') || album.contains('portraits') ||
+        title.contains('selfie') || title.contains('portrait') || title.contains('face')) {
       return 'Personal & Portraits';
-    }
-
-    // 9. Standard camera aspect ratio photos (4:3, 16:9)
-    if (asset.width > 0 && asset.height > 0) {
-      final longer = max(asset.width, asset.height);
-      final shorter = min(asset.width, asset.height);
-      final ratio = longer / shorter;
-      if ((ratio >= 1.30 && ratio <= 1.36) || (ratio >= 1.74 && ratio <= 1.80)) {
-        return 'Personal & Portraits';
-      }
     }
 
     return null;
@@ -342,8 +330,7 @@ class CategorizationService {
       // Smartphone screenshot ratio
       if (ratio >= 1.95 && ratio <= 2.35) return 'Screenshots';
 
-      // Standard camera photo ratios (4:3, 16:9, etc.)
-      return 'Personal & Portraits';
+      return 'Others';
     }
 
     return 'Others';

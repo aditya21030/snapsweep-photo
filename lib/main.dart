@@ -22,6 +22,7 @@ import 'presentation/screens/timeline/timeline_cleaner_screen.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'presentation/screens/categories/category_cleaner_screen.dart';
+import 'presentation/screens/trash/trash_screen.dart';
 import 'package:flutter/services.dart';
 import 'core/services/ad_service.dart';
 import 'core/services/billing_service.dart';
@@ -131,6 +132,10 @@ final _router = GoRouter(
           assets: extra['assets'] as List<AssetEntity>,
         );
       },
+    ),
+    GoRoute(
+      path: '/trash',
+      builder: (context, state) => const TrashScreen(),
     ),
     GoRoute(
       path: '/legal',
