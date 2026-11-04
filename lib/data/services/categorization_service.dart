@@ -202,6 +202,7 @@ class CategorizationService {
     final quick = quickCategorize(asset, albumName: albumName);
     if (quick != null) return quick;
 
+    File? tempFile;
     try {
       // Use downscaled 360x360 thumbnail for ML to avoid decoding 40MB raw photos
       Uint8List? thumbBytes;
@@ -212,8 +213,9 @@ class CategorizationService {
       File? file;
       if (thumbBytes != null && thumbBytes.isNotEmpty) {
         final tempDir = Directory.systemTemp;
-        file = File('${tempDir.path}/snapsweep_ml_thumb_${asset.id.hashCode}.jpg');
-        await file.writeAsBytes(thumbBytes, flush: true);
+        tempFile = File('${tempDir.path}/snapsweep_ml_thumb_${asset.id.hashCode}_${DateTime.now().microsecondsSinceEpoch}.jpg');
+        await tempFile.writeAsBytes(thumbBytes, flush: true);
+        file = tempFile;
       } else {
         file = await asset.file;
       }
@@ -295,6 +297,14 @@ class CategorizationService {
     } catch (e) {
       debugPrint('[Categorization ML Error] $e');
       return _fallbackCategory(asset, albumName: albumName);
+    } finally {
+      if (tempFile != null) {
+        try {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        } catch (_) {}
+      }
     }
   }
 

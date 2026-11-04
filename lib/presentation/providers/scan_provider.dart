@@ -34,9 +34,12 @@ Future<void> _saveCacheCompute(Map<String, dynamic> data) async {
   try {
     final path = data['path'] as String;
     final cache = data['cache'] as Map;
-    final file = File(path);
+    final fileTmp = File('$path.tmp');
     final jsonStr = jsonEncode(cache);
-    await file.writeAsString(jsonStr);
+    await fileTmp.writeAsString(jsonStr, flush: true);
+    if (await fileTmp.exists()) {
+      await fileTmp.rename(path);
+    }
   } catch (e) {
     debugPrint('[CACHE COMPUTE SAVE ERROR] $e');
   }
@@ -302,7 +305,14 @@ class ScanProvider extends ChangeNotifier {
 
   int _batchesSent = 0;
   int _batchesProcessed = 0;
+  bool _allBatchesDispatched = false;
   Completer<void>? _allBatchesProcessedCompleter;
+
+  void _streamBatchToIsolate(List<ScanItem> chunk) {
+    if (chunk.isEmpty || _isolateSendPort == null) return;
+    _batchesSent++;
+    _isolateSendPort!.send(ScanBatch(List.of(chunk)));
+  }
 
   void _handleBatchResults(List<ProcessedItem> results) {
     for (var item in results) {
@@ -320,7 +330,7 @@ class ScanProvider extends ChangeNotifier {
     }
 
     _batchesProcessed++;
-    if (_batchesSent > 0 && _batchesProcessed >= _batchesSent) {
+    if (_allBatchesDispatched && _batchesSent > 0 && _batchesProcessed >= _batchesSent) {
       if (_allBatchesProcessedCompleter != null && !_allBatchesProcessedCompleter!.isCompleted) {
         _allBatchesProcessedCompleter!.complete();
       }
@@ -583,9 +593,9 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      // B) Similar / Burst photo candidates: consecutive camera shots within 45 seconds
+      // B) Similar / Burst photo candidates: consecutive camera shots within 4 seconds
       final List<AssetEntity> temporalAssets = _allScreenshots
-          .where((a) => a.type == AssetType.image)
+          .where((a) => a.type == AssetType.image && _isCameraOrGalleryCapture(a))
           .toList();
 
       temporalAssets.sort((a, b) {
@@ -628,10 +638,11 @@ class ScanProvider extends ChangeNotifier {
         return path.contains('dcim') || path.contains('camera') || path.contains('img_');
       }).take(180).toList());
 
-      // 5. TARGETED BATCH RESOLUTION
+      // 5. TARGETED BATCH RESOLUTION WITH PIPELINED STREAMING
       _setTargetProgress(0.48, status: 'Analyzing duplicate file sizes...');
 
       // Step A: Stat file sizes for duplicate candidates in parallel chunks of 60
+      final Map<String, String> resolvedPaths = {};
       for (int i = 0; i < duplicateCandidates.length; i += 60) {
         if (_scanSessionId != mySessionId) return;
         final chunk = duplicateCandidates.sublist(
@@ -656,6 +667,10 @@ class ScanProvider extends ChangeNotifier {
         for (final r in results) {
           final asset = r.$1;
           final size = r.$2;
+          final path = r.$3;
+          if (path.isNotEmpty) {
+            resolvedPaths[asset.id] = path;
+          }
           if (size > 0) {
             _assetSizes[asset.id] = size;
             _totalSize += size;
@@ -680,22 +695,25 @@ class ScanProvider extends ChangeNotifier {
         }
       }
 
-      // Collect all scan items for Isolate processing in one clean, structured batch
-      List<ScanItem> allScanItems = [];
+      _batchesSent = 0;
+      _batchesProcessed = 0;
+      _allBatchesDispatched = false;
+      _allBatchesProcessedCompleter = Completer<void>();
 
-      // A) MD5 items
+      // Stream A: Exact Duplicate candidates (Sparse Fast-Hash)
+      List<ScanItem> md5StreamChunk = [];
       for (final group in exactCandidateGroups.values) {
         if (group.length > 1) {
           for (final asset in group) {
             final cachedMd5 = _scanCache[asset.id]?['md5'] as String?;
-            String path = '';
-            if (cachedMd5 == null) {
+            String path = resolvedPaths[asset.id] ?? '';
+            if (cachedMd5 == null && path.isEmpty) {
               try {
                 final file = await asset.file;
                 if (file != null) path = file.path;
               } catch (_) {}
             }
-            allScanItems.add(ScanItem(
+            md5StreamChunk.add(ScanItem(
               id: asset.id,
               path: path,
               cachedMd5: cachedMd5,
@@ -703,91 +721,108 @@ class ScanProvider extends ChangeNotifier {
               needsDHash: false,
               checkBlur: false,
             ));
+
+            if (md5StreamChunk.length >= 36) {
+              _streamBatchToIsolate(md5StreamChunk);
+              md5StreamChunk = [];
+            }
           }
         }
       }
+      if (md5StreamChunk.isNotEmpty) {
+        _streamBatchToIsolate(md5StreamChunk);
+        md5StreamChunk = [];
+      }
 
-      // B) Burst items (Similar Photos)
-      _setTargetProgress(0.62, status: 'Reviewing burst sequences...');
-      final List<({AssetEntity asset, String clusterId})> burstTasks = [];
+      // Stream B: Deduplicated Burst sequences & Blurry candidates
+      _setTargetProgress(0.62, status: 'Reviewing burst sequences & sharpness...');
+      final Map<String, ({AssetEntity asset, String? clusterId, bool checkBlur, bool needsDHash})> candidateWorkMap = {};
+
       final Set<String> processedSimilarIds = {};
       for (final entry in burstClusters.entries) {
         for (final asset in entry.value) {
           if (!processedSimilarIds.contains(asset.id)) {
             processedSimilarIds.add(asset.id);
-            burstTasks.add((asset: asset, clusterId: entry.key));
+            final cachedDHash = _scanCache[asset.id]?['dHash'] as String?;
+            candidateWorkMap[asset.id] = (
+              asset: asset,
+              clusterId: entry.key,
+              checkBlur: false,
+              needsDHash: cachedDHash == null,
+            );
           }
         }
       }
 
-      for (int i = 0; i < burstTasks.length; i += 48) {
-        if (_scanSessionId != mySessionId) return;
-        final chunk = burstTasks.sublist(i, min(i + 48, burstTasks.length));
-
-        final chunkResults = await Future.wait(chunk.map((item) async {
-          final cachedDHash = _scanCache[item.asset.id]?['dHash'] as String?;
-          Uint8List? thumb;
-          if (cachedDHash == null) {
-            try {
-              thumb = await item.asset.thumbnailDataWithSize(const ThumbnailSize.square(64));
-            } catch (_) {}
-          }
-          return ScanItem(
-            id: item.asset.id,
-            path: '',
-            thumbBytes: thumb,
-            cachedDHash: cachedDHash,
-            needsDHash: cachedDHash == null,
-            needsMd5: false,
-            checkBlur: false,
-            clusterId: item.clusterId,
-          );
-        }));
-
-        allScanItems.addAll(chunkResults);
-        final ratio = (i + chunk.length) / max(1, burstTasks.length);
-        _setTargetProgress(0.62 + 0.18 * ratio, status: 'Reviewing burst sequences...');
-      }
-
-      // C) Blurry Photo Checks on Camera Photos
-      _setTargetProgress(0.82, status: 'Checking photo sharpness...');
       final List<AssetEntity> blurCandidates = cameraPhotos
           .where((a) => _scanCache[a.id]?['is_blurry'] == null)
           .toList();
 
-      for (int i = 0; i < blurCandidates.length; i += 36) {
+      for (final asset in blurCandidates) {
+        if (candidateWorkMap.containsKey(asset.id)) {
+          final existing = candidateWorkMap[asset.id]!;
+          candidateWorkMap[asset.id] = (
+            asset: existing.asset,
+            clusterId: existing.clusterId,
+            checkBlur: true,
+            needsDHash: existing.needsDHash,
+          );
+        } else {
+          candidateWorkMap[asset.id] = (
+            asset: asset,
+            clusterId: null,
+            checkBlur: true,
+            needsDHash: false,
+          );
+        }
+      }
+
+      final allCandidateWork = candidateWorkMap.values.toList();
+      for (int i = 0; i < allCandidateWork.length; i += 36) {
         if (_scanSessionId != mySessionId) return;
-        final chunk = blurCandidates.sublist(i, min(i + 36, blurCandidates.length));
+        final chunk = allCandidateWork.sublist(i, min(i + 36, allCandidateWork.length));
 
-        final chunkResults = await Future.wait(chunk.map((asset) async {
+        final chunkScanItems = await Future.wait(chunk.map((work) async {
+          final cachedDHash = _scanCache[work.asset.id]?['dHash'] as String?;
+          final cachedIsBlurry = _scanCache[work.asset.id]?['is_blurry'] as bool?;
+
           Uint8List? thumb;
-          try {
-            thumb = await asset.thumbnailDataWithSize(const ThumbnailSize.square(64));
-          } catch (_) {}
+          if ((work.needsDHash && cachedDHash == null) || (work.checkBlur && cachedIsBlurry == null)) {
+            try {
+              thumb = await work.asset.thumbnailDataWithSize(const ThumbnailSize.square(64));
+            } catch (_) {}
+          }
 
-          if (thumb == null) return null;
           return ScanItem(
-            id: asset.id,
+            id: work.asset.id,
             path: '',
             thumbBytes: thumb,
-            needsDHash: false,
+            cachedDHash: cachedDHash,
+            cachedIsBlurry: cachedIsBlurry,
+            needsDHash: work.needsDHash && cachedDHash == null,
             needsMd5: false,
-            checkBlur: true,
+            checkBlur: work.checkBlur && cachedIsBlurry == null,
+            clusterId: work.clusterId,
           );
         }));
 
-        allScanItems.addAll(chunkResults.whereType<ScanItem>());
-        final ratio = (i + chunk.length) / max(1, blurCandidates.length);
-        _setTargetProgress(0.82 + 0.10 * ratio, status: 'Checking photo sharpness...');
+        _streamBatchToIsolate(chunkScanItems);
+
+        final ratio = (i + chunk.length) / max(1, allCandidateWork.length);
+        _setTargetProgress(0.62 + 0.30 * ratio, status: 'Reviewing photo sequences and sharpness...');
       }
 
-      // 6. Send Items to Isolate and Await Completion
+      // Mark all batches dispatched
+      _allBatchesDispatched = true;
+      if (_batchesProcessed >= _batchesSent) {
+        if (_allBatchesProcessedCompleter != null && !_allBatchesProcessedCompleter!.isCompleted) {
+          _allBatchesProcessedCompleter!.complete();
+        }
+      }
+
+      // Await completion of all pipelined batches (the isolate has already finished most work!)
       _setTargetProgress(0.93, status: 'Finalizing grouping...');
-      if (allScanItems.isNotEmpty && _isolateSendPort != null) {
-        _batchesSent = 1;
-        _batchesProcessed = 0;
-        _allBatchesProcessedCompleter = Completer<void>();
-        _isolateSendPort!.send(ScanBatch(allScanItems));
+      if (_batchesSent > 0) {
         await _allBatchesProcessedCompleter!.future.timeout(
           const Duration(seconds: 20),
           onTimeout: () => debugPrint('[Scanner] Batch processing timed out'),
@@ -827,6 +862,15 @@ class ScanProvider extends ChangeNotifier {
   String get formattedDuplicateSize => AppUtils.formatBytes(_duplicateSize);
   String get formattedSimilarSize => AppUtils.formatBytes(_similarSize);
 
+  bool _isCameraOrGalleryCapture(AssetEntity asset) {
+    if (_scanScope != ScanScope.fullGallery) return true;
+    final path = '${asset.title ?? ''} ${asset.relativePath ?? ''} ${_assetAlbumMap[asset.id] ?? ''}'.toLowerCase();
+    if (path.contains('screenshot') || path.contains('whatsapp') || path.contains('download')) {
+      return false;
+    }
+    return true;
+  }
+
   int _getFolderAuthorityScore(AssetEntity asset) {
     final path = '${asset.title ?? ''} ${asset.relativePath ?? ''} ${_assetAlbumMap[asset.id] ?? ''}'.toLowerCase();
     if (path.contains('whatsapp') || path.contains('telegram') || path.contains('download')) {
@@ -858,9 +902,9 @@ class ScanProvider extends ChangeNotifier {
     final sizeComparison = (_assetSizes[b.id] ?? 0).compareTo(_assetSizes[a.id] ?? 0);
     if (sizeComparison != 0) return sizeComparison;
 
-    // 4. Prefer original earlier capture timestamp
-    final dateA = a.createDateTime;
-    final dateB = b.createDateTime;
+    // 4. Prefer original earlier capture timestamp (fast integer comparison)
+    final dateA = a.createDateSecond ?? (a.createDateTime.millisecondsSinceEpoch ~/ 1000);
+    final dateB = b.createDateSecond ?? (b.createDateTime.millisecondsSinceEpoch ~/ 1000);
     final dateComp = dateA.compareTo(dateB);
     if (dateComp != 0) return dateComp;
 
@@ -957,20 +1001,6 @@ class ScanProvider extends ChangeNotifier {
     }
     _similarGroups.removeWhere((group) => group.length < 2);
     _similarGroups = List.from(_similarGroups);
-
-    _duplicateSize = 0;
-    for (var group in _duplicateGroups) {
-      for (var asset in group) {
-        _duplicateSize += _assetSizes[asset.id] ?? 0;
-      }
-    }
-
-    _similarSize = 0;
-    for (var group in _similarGroups) {
-      for (var asset in group) {
-        _similarSize += _assetSizes[asset.id] ?? 0;
-      }
-    }
 
     _blurryPhotos.removeWhere((a) => idsToRemove.contains(a.id));
     _blurryPhotos = List.from(_blurryPhotos);

@@ -93,12 +93,16 @@ class MediaService {
     if (recentAlbum != null) {
       final count = await recentAlbum.assetCountAsync;
       final limit = count > 15000 ? 15000 : count;
-      final items = await recentAlbum.getAssetListRange(start: 0, end: limit);
-      for (var asset in items) {
-        if (_matchesScope(asset, scope, null) && !processedIds.contains(asset.id)) {
-          allAssets.add(asset);
-          processedIds.add(asset.id);
-          assetAlbumMap[asset.id] = _folderFromPath(asset.relativePath);
+      const pageSize = 1500;
+      for (int start = 0; start < limit; start += pageSize) {
+        final end = (start + pageSize < limit) ? start + pageSize : limit;
+        final items = await recentAlbum.getAssetListRange(start: start, end: end);
+        for (var asset in items) {
+          if (_matchesScope(asset, scope, null) && !processedIds.contains(asset.id)) {
+            allAssets.add(asset);
+            processedIds.add(asset.id);
+            assetAlbumMap[asset.id] = _folderFromPath(asset.relativePath);
+          }
         }
       }
     } else {
@@ -109,13 +113,17 @@ class MediaService {
         if (count == 0) continue;
 
         final limit = count > 10000 ? 10000 : count;
-        final items = await album.getAssetListRange(start: 0, end: limit);
+        const pageSize = 1500;
+        for (int start = 0; start < limit; start += pageSize) {
+          final end = (start + pageSize < limit) ? start + pageSize : limit;
+          final items = await album.getAssetListRange(start: start, end: end);
 
-        for (var asset in items) {
-          assetAlbumMap[asset.id] = album.name;
-          if (_matchesScope(asset, scope, album.name) && !processedIds.contains(asset.id)) {
-            allAssets.add(asset);
-            processedIds.add(asset.id);
+          for (var asset in items) {
+            assetAlbumMap[asset.id] = album.name;
+            if (_matchesScope(asset, scope, album.name) && !processedIds.contains(asset.id)) {
+              allAssets.add(asset);
+              processedIds.add(asset.id);
+            }
           }
         }
       }
