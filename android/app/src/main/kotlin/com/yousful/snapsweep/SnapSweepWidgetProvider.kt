@@ -19,12 +19,11 @@ class SnapSweepWidgetProvider : HomeWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.snapsweep_widget)
 
-            val statusText = widgetData.getString("widget_status", "Ready to Clean") ?: "Ready to Clean"
-            val reclaimableText = widgetData.getString("widget_reclaimable", "0 B Reclaimable") ?: "0 B Reclaimable"
-            val countText = widgetData.getString("widget_count", "Tap to review junk") ?: "Tap to review junk"
+            val labelText = widgetData.getString("widget_label", "RECLAIMABLE") ?: "RECLAIMABLE"
+            val reclaimableText = widgetData.getString("widget_reclaimable", "0 B") ?: "0 B"
+            val countText = widgetData.getString("widget_count", "OPTIMIZED") ?: "OPTIMIZED"
 
-            views.setTextViewText(R.id.widget_title, "SnapSweep")
-            views.setTextViewText(R.id.widget_status, statusText)
+            views.setTextViewText(R.id.widget_label, labelText)
             views.setTextViewText(R.id.widget_reclaimable, reclaimableText)
             views.setTextViewText(R.id.widget_count, countText)
 
@@ -56,7 +55,7 @@ class SnapSweepWidgetProvider : HomeWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_btn_swipe, swipePendingIntent)
 
-            // Overall widget click
+            // Overall widget container click
             views.setOnClickPendingIntent(R.id.widget_container, cleanPendingIntent)
 
             appWidgetManager.updateAppWidget(widgetId, views)

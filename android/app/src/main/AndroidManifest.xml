@@ -53,6 +53,28 @@
                 android:resource="@xml/snapsweep_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".SnapSweepReviewWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/snapsweep_widget_review_info" />
+        </receiver>
+
+        <receiver
+            android:name=".SnapSweepSwipeWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/snapsweep_widget_swipe_info" />
+        </receiver>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
