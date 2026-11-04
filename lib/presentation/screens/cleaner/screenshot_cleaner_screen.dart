@@ -12,6 +12,7 @@ import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
 
 enum ScreenshotAgeFilter {
+  olderThan7Days,
   olderThan30Days,
   olderThan60Days,
   olderThan90Days,
@@ -21,6 +22,7 @@ enum ScreenshotAgeFilter {
 
 extension ScreenshotAgeFilterLabel on ScreenshotAgeFilter {
   String get label => switch (this) {
+        ScreenshotAgeFilter.olderThan7Days => 'Over 7 days',
         ScreenshotAgeFilter.olderThan30Days => 'Over 30 days',
         ScreenshotAgeFilter.olderThan60Days => 'Over 60 days',
         ScreenshotAgeFilter.olderThan90Days => 'Over 90 days',
@@ -51,7 +53,8 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
       final now = DateTime.now();
       final hasOld = screenshots.any((a) => now.difference(a.createDateTime).inDays >= 30);
       if (!hasOld && screenshots.isNotEmpty) {
-        setState(() => _activeAgeFilter = ScreenshotAgeFilter.allScreenshots);
+        final hasWeekOld = screenshots.any((a) => now.difference(a.createDateTime).inDays >= 7);
+        setState(() => _activeAgeFilter = hasWeekOld ? ScreenshotAgeFilter.olderThan7Days : ScreenshotAgeFilter.allScreenshots);
       }
     });
   }
@@ -61,6 +64,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
     List<AssetEntity> filtered = screenshots.where((asset) {
       final age = now.difference(asset.createDateTime);
       return switch (_activeAgeFilter) {
+        ScreenshotAgeFilter.olderThan7Days => age.inDays >= 7,
         ScreenshotAgeFilter.olderThan30Days => age.inDays >= 30,
         ScreenshotAgeFilter.olderThan60Days => age.inDays >= 60,
         ScreenshotAgeFilter.olderThan90Days => age.inDays >= 90,

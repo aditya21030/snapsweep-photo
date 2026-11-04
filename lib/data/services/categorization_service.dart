@@ -89,13 +89,21 @@ class CategorizationService {
   static const List<String> _socialKeywords = [
     'whatsapp', 'wa0', 'wa1', 'wa2', '_wa', '-wa', 'telegram', 'tg_', 'instagram', 'insta',
     'messenger', 'snapchat', 'snap_', 'discord', 'signal', 'facebook', 'fb_', 'twitter',
-    'x_', 'pinterest', 'tiktok', 'viber', 'wechat', 'line', 'threads'
+    'x_', 'pinterest', 'tiktok', 'viber', 'wechat', 'line', 'threads', 'gbwhatsapp',
+    'fmwhatsapp', 'inshot', 'capcut', 'vsco'
   ];
 
   static const List<String> _downloadKeywords = [
     'download', 'downloads', 'browser', 'chrome', 'firefox', 'opera', 'edge', 'brave',
     'ucbrowser', 'meme', 'reddit', '9gag', 'sticker', 'gif', 'webp', 'saved_image'
   ];
+
+  static final RegExp _currencyRegex = RegExp(r'(?:₹|\$|€|£|rs\.?|inr)\s*\d+(?:[.,]\d{2})?', caseSensitive: false);
+  static final RegExp _transactionRegex = RegExp(r'\b(?:upi\s*ref|txn\s*id|transaction\s*id|invoice\s*no|gstin|subtotal|grand\s*total|net\s*payable|amount\s*paid|paid\s*to|transfer\s*successful)\b', caseSensitive: false);
+  static final RegExp _aadhaarRegex = RegExp(r'\b\d{4}\s\d{4}\s\d{4}\b');
+  static final RegExp _panRegex = RegExp(r'\b[A-Z]{5}[0-9]{4}[A-Z]\b', caseSensitive: false);
+  static final RegExp _dlRegex = RegExp(r'\b[A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7}\b', caseSensitive: false);
+  static final RegExp _memeSlangRegex = RegExp(r'\b(?:when you|me when|nobody:|pov|relatable|literally|bruh|bro|tbh|lmao|lol|caption this)\b', caseSensitive: false);
 
   void dispose() {
     _textRecognizer.close();
@@ -260,11 +268,17 @@ class CategorizationService {
       if (isDocVisual) {
         final recognizedText = await _textRecognizer.processImage(inputImage);
         final ocr = recognizedText.text.toLowerCase();
-        if (ocr.length >= 8) {
-          if (_financeKeywords.any((kw) => ocr.contains(kw))) {
+        if (ocr.length >= 6) {
+          if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywords.any((kw) => ocr.contains(kw))) {
             return 'Bills & Finance';
           }
-          if (_docKeywords.any((kw) => ocr.contains(kw)) || ocr.length > 50 || recognizedText.blocks.length >= 3) {
+          if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywords.any((kw) => ocr.contains(kw))) {
+            return 'Documents & IDs';
+          }
+          if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
+            return 'Memes & Downloads';
+          }
+          if (ocr.length > 50 || recognizedText.blocks.length >= 3) {
             return 'Documents & IDs';
           }
         }
@@ -283,11 +297,17 @@ class CategorizationService {
       if (hasTextHint) {
         final recognizedText = await _textRecognizer.processImage(inputImage);
         final ocr = recognizedText.text.toLowerCase();
-        if (ocr.length >= 8) {
-          if (_financeKeywords.any((kw) => ocr.contains(kw))) {
+        if (ocr.length >= 6) {
+          if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywords.any((kw) => ocr.contains(kw))) {
             return 'Bills & Finance';
           }
-          if (_docKeywords.any((kw) => ocr.contains(kw)) || ocr.length > 40) {
+          if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywords.any((kw) => ocr.contains(kw))) {
+            return 'Documents & IDs';
+          }
+          if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
+            return 'Memes & Downloads';
+          }
+          if (ocr.length > 40) {
             return 'Documents & IDs';
           }
         }

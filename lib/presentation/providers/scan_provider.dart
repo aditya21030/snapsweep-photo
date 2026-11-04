@@ -284,7 +284,15 @@ class ScanProvider extends ChangeNotifier {
         final duplicates = (message['duplicates'] as List).cast<List<String>>();
         final similar = (message['similar'] as List).cast<List<String>>();
         final blurry = ((message['blurry'] as List?) ?? []).cast<String>();
-        _handleFinalResults(duplicates, similar, blurry);
+        final sharpness = ((message['sharpness'] as Map?) ?? {}).cast<String, double>();
+        final blurTypes = ((message['blurTypes'] as Map?) ?? {}).cast<String, String>();
+        _handleFinalResults(
+          duplicates,
+          similar,
+          blurry,
+          sharpnessScores: sharpness,
+          blurTypes: blurTypes,
+        );
         break;
       case ScannerResponse.log:
         _debugLogs += '\n[Isolate] ${message['message']}';
@@ -327,6 +335,10 @@ class ScanProvider extends ChangeNotifier {
         _scanCache[item.id]!['md5'] = item.md5;
       }
       _scanCache[item.id]!['is_blurry'] = item.isBlurry;
+      _scanCache[item.id]!['sharpness'] = item.sharpnessScore;
+      if (item.blurType != null) {
+        _scanCache[item.id]!['blur_type'] = item.blurType;
+      }
     }
 
     _batchesProcessed++;
@@ -339,7 +351,26 @@ class ScanProvider extends ChangeNotifier {
 
   Completer<void>? _finalResultsCompleter;
 
-  void _handleFinalResults(List<List<String>> duplicates, List<List<String>> similar, List<String> blurry) {
+  void _handleFinalResults(
+    List<List<String>> duplicates,
+    List<List<String>> similar,
+    List<String> blurry, {
+    Map<String, double> sharpnessScores = const {},
+    Map<String, String> blurTypes = const {},
+  }) {
+    for (final entry in sharpnessScores.entries) {
+      if (!_scanCache.containsKey(entry.key)) {
+        _scanCache[entry.key] = {};
+      }
+      _scanCache[entry.key]!['sharpness'] = entry.value;
+    }
+    for (final entry in blurTypes.entries) {
+      if (!_scanCache.containsKey(entry.key)) {
+        _scanCache[entry.key] = {};
+      }
+      _scanCache[entry.key]!['blur_type'] = entry.value;
+    }
+
     _duplicateGroups = [];
     _similarGroups = [];
     _blurryPhotos = [];
@@ -358,7 +389,7 @@ class ScanProvider extends ChangeNotifier {
     for (var group in similar) {
       List<AssetEntity> assets = group.map((id) => assetMap[id]).whereType<AssetEntity>().toList();
       if (assets.length > 1) {
-        assets.sort(_compareAssetsForKeeping);
+        assets.sort(_compareBurstAssetsForKeeping);
         _similarGroups.add(assets);
       }
     }
@@ -911,6 +942,30 @@ class ScanProvider extends ChangeNotifier {
     // 5. Deterministic tie-breaker for reproducible sorting
     return a.id.compareTo(b.id);
   }
+
+  int _compareBurstAssetsForKeeping(AssetEntity a, AssetEntity b) {
+    // 1. Non-blurry comes before blurry
+    final aBlurry = _scanCache[a.id]?['is_blurry'] == true;
+    final bBlurry = _scanCache[b.id]?['is_blurry'] == true;
+    if (aBlurry != bBlurry) {
+      return aBlurry ? 1 : -1;
+    }
+
+    // 2. Rank by sharpness score (highest score first)
+    final aSharpness = (_scanCache[a.id]?['sharpness'] as double?) ?? 0.0;
+    final bSharpness = (_scanCache[b.id]?['sharpness'] as double?) ?? 0.0;
+    final sharpComp = bSharpness.compareTo(aSharpness);
+    if (sharpComp != 0) return sharpComp;
+
+    // 3. Fallback to general authority comparison
+    return _compareAssetsForKeeping(a, b);
+  }
+
+  double getAssetSharpness(String assetId) =>
+      (_scanCache[assetId]?['sharpness'] as double?) ?? 85.0;
+
+  String? getAssetBlurType(String assetId) =>
+      _scanCache[assetId]?['blur_type'] as String?;
 
   // --- Smart Clean Logic ---
   int _smartCleanSize = 0;

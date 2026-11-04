@@ -60,6 +60,9 @@ class ProcessedItem {
   final String? clusterId;
   final int dHashHigh;
   final int dHashLow;
+  final double sharpnessScore;
+  final String? blurType;
+  final double aspectRatio;
 
   ProcessedItem({
     required this.id,
@@ -69,6 +72,9 @@ class ProcessedItem {
     this.clusterId,
     this.dHashHigh = 0,
     this.dHashLow = 0,
+    this.sharpnessScore = 85.0,
+    this.blurType,
+    this.aspectRatio = 1.0,
   });
 }
 
@@ -76,8 +82,16 @@ class ScanResult {
   final List<List<String>> duplicateGroupIds;
   final List<List<String>> similarGroupIds;
   final List<String> blurryPhotoIds;
+  final Map<String, double> sharpnessScores;
+  final Map<String, String> blurTypes;
 
-  ScanResult(this.duplicateGroupIds, this.similarGroupIds, this.blurryPhotoIds);
+  ScanResult(
+    this.duplicateGroupIds,
+    this.similarGroupIds,
+    this.blurryPhotoIds, {
+    this.sharpnessScores = const {},
+    this.blurTypes = const {},
+  });
 }
 
 /// 64-bit Population Count (Hamming weight) using SWAR algorithm.
@@ -127,6 +141,9 @@ void scannerIsolateEntry(SendPort sendPort) {
           String? dHash = item.cachedDHash;
           int dHashHigh = 0;
           int dHashLow = 0;
+          double sharpness = 85.0;
+          String? blurType;
+          double aspectRatio = 1.0;
 
           if (dHash != null && dHash.length == 128) {
             final bits = _stringToBits128(dHash);
@@ -140,15 +157,21 @@ void scannerIsolateEntry(SendPort sendPort) {
           // Compute dHash & check sharpness if needed
           if (item.needsDHash && item.thumbBytes != null) {
             final analysis = _analyzeImage(item.thumbBytes!, sendPort, checkBlur: item.checkBlur);
-            dHash ??= analysis.$1;
-            if (analysis.$2 != null) {
-              dHashHigh = analysis.$2!.$1;
-              dHashLow = analysis.$2!.$2;
+            dHash ??= analysis.hash;
+            if (analysis.bits != null) {
+              dHashHigh = analysis.bits!.$1;
+              dHashLow = analysis.bits!.$2;
             }
-            isBlurry = analysis.$3;
+            isBlurry = analysis.isBlurry;
+            sharpness = analysis.sharpnessScore;
+            blurType = analysis.blurType;
+            aspectRatio = analysis.aspectRatio;
           } else if (item.checkBlur && item.thumbBytes != null) {
             final analysis = _analyzeImage(item.thumbBytes!, sendPort, checkBlur: true);
-            isBlurry = analysis.$3;
+            isBlurry = analysis.isBlurry;
+            sharpness = analysis.sharpnessScore;
+            blurType = analysis.blurType;
+            aspectRatio = analysis.aspectRatio;
           }
 
           // Sparse Fast-Hash (Tier 2.5) for duplicate verification
@@ -164,6 +187,9 @@ void scannerIsolateEntry(SendPort sendPort) {
             clusterId: item.clusterId,
             dHashHigh: dHashHigh,
             dHashLow: dHashLow,
+            sharpnessScore: sharpness,
+            blurType: blurType,
+            aspectRatio: aspectRatio,
           );
           results.add(result);
           processedItems.add(result);
@@ -186,6 +212,8 @@ void scannerIsolateEntry(SendPort sendPort) {
           'duplicates': result.duplicateGroupIds,
           'similar': result.similarGroupIds,
           'blurry': result.blurryPhotoIds,
+          'sharpness': result.sharpnessScores,
+          'blurTypes': result.blurTypes,
         });
       } catch (e) {
         sendPort.send({'type': ScannerResponse.error, 'message': 'Grouping Error: $e'});
@@ -199,12 +227,44 @@ void scannerIsolateEntry(SendPort sendPort) {
   });
 }
 
-(String?, (int, int)?, bool) _analyzeImage(Uint8List bytes, SendPort p, {bool checkBlur = false}) {
+class _ImageAnalysisResult {
+  final String? hash;
+  final (int, int)? bits;
+  final bool isBlurry;
+  final double sharpnessScore;
+  final String? blurType;
+  final double aspectRatio;
+
+  const _ImageAnalysisResult({
+    this.hash,
+    this.bits,
+    this.isBlurry = false,
+    this.sharpnessScore = 85.0,
+    this.blurType,
+    this.aspectRatio = 1.0,
+  });
+}
+
+class _BlurAnalysisResult {
+  final bool isBlurry;
+  final double sharpness;
+  final String? blurType;
+
+  const _BlurAnalysisResult({
+    required this.isBlurry,
+    required this.sharpness,
+    this.blurType,
+  });
+}
+
+_ImageAnalysisResult _analyzeImage(Uint8List bytes, SendPort p, {bool checkBlur = false}) {
   try {
     final image = img.decodeImage(bytes);
     if (image == null) {
-      return (null, null, false);
+      return const _ImageAnalysisResult();
     }
+
+    final double aspectRatio = (image.height > 0) ? (image.width / image.height) : 1.0;
 
     // 1. Dual-Axis dHash (9x9 downscaled for horizontal and vertical gradients)
     final resized = img.copyResize(image, width: 9, height: 9);
@@ -244,33 +304,62 @@ void scannerIsolateEntry(SendPort sendPort) {
 
     final hash = hashBuffer.toString();
 
-    // 2. Zero-Allocation Laplacian Variance for Blurry / Out-of-Focus Detection
+    // 2. Center-Weighted Laplacian Variance & Sharpness Engine
     bool isBlurry = false;
+    double sharpness = 85.0;
+    String? blurType;
+
     if (checkBlur) {
-      isBlurry = _checkIsBlurry(image);
+      final blurAnalysis = _checkBlurAndSharpness(image);
+      isBlurry = blurAnalysis.isBlurry;
+      sharpness = blurAnalysis.sharpness;
+      blurType = blurAnalysis.blurType;
     }
 
-    return (hash, (hHigh, hLow), isBlurry);
+    return _ImageAnalysisResult(
+      hash: hash,
+      bits: (hHigh, hLow),
+      isBlurry: isBlurry,
+      sharpnessScore: sharpness,
+      blurType: blurType,
+      aspectRatio: aspectRatio,
+    );
   } catch (e) {
     _log(p, "Image Analysis Error: $e");
-    return (null, null, false);
+    return const _ImageAnalysisResult();
   }
 }
 
-/// Zero-heap-allocation Laplacian variance.
+/// Zero-heap-allocation Center-Weighted Laplacian variance and motion blur detector.
 /// Eliminates calling img.grayscale() which copies the entire image.
-bool _checkIsBlurry(img.Image image) {
+_BlurAnalysisResult _checkBlurAndSharpness(img.Image image) {
   final w = image.width;
   final h = image.height;
-  if (w < 4 || h < 4) return false;
+  if (w < 4 || h < 4) {
+    return const _BlurAnalysisResult(isBlurry: false, sharpness: 100.0);
+  }
+
+  final centerX = w / 2.0;
+  final centerY = h / 2.0;
+  final halfW = w / 2.0;
+  final halfH = h / 2.0;
 
   num minVal = 255;
   num maxVal = 0;
-  double sum = 0.0;
-  double sumSq = 0.0;
+  double sumLap = 0.0;
+  double sumSqLap = 0.0;
+  double sumWeight = 0.0;
+
+  double sumLapX = 0.0;
+  double sumSqLapX = 0.0;
+  double sumLapY = 0.0;
+  double sumSqLapY = 0.0;
   int count = 0;
 
   for (int y = 1; y < h - 1; y++) {
+    final dy = (y - centerY) / halfH;
+    final dySq = dy * dy;
+
     for (int x = 1; x < w - 1; x++) {
       final center = image.getPixel(x, y).luminance;
       if (center < minVal) minVal = center;
@@ -281,24 +370,62 @@ bool _checkIsBlurry(img.Image image) {
       final left = image.getPixel(x - 1, y).luminance;
       final right = image.getPixel(x + 1, y).luminance;
 
+      // Center-weighting: Subject in center gets 2.5x weight to prevent portrait bokeh from being flagged
+      final dx = (x - centerX) / halfW;
+      final rSq = dx * dx + dySq;
+      final double weight = (rSq <= 0.36) ? 2.5 : ((rSq <= 0.75) ? 1.5 : 1.0);
+
       final lap = (top + bottom + left + right) - (4.0 * center);
-      sum += lap;
-      sumSq += lap * lap;
+      sumLap += lap * weight;
+      sumSqLap += lap * lap * weight;
+      sumWeight += weight;
+
+      final lapX = (left + right) - (2.0 * center);
+      final lapY = (top + bottom) - (2.0 * center);
+      sumLapX += lapX;
+      sumSqLapX += lapX * lapX;
+      sumLapY += lapY;
+      sumSqLapY += lapY * lapY;
+
       count++;
     }
   }
 
-  if (count == 0) return false;
-
-  // Dynamic Range Guard: if contrast is too low (e.g. plain blue sky, dark night photo),
-  // it is not an out-of-focus photo, it is a uniform or minimalist scene.
-  if ((maxVal - minVal) < 35) {
-    return false;
+  if (count == 0 || sumWeight == 0) {
+    return const _BlurAnalysisResult(isBlurry: false, sharpness: 100.0);
   }
 
-  final mean = sum / count;
-  final variance = (sumSq / count) - (mean * mean);
-  return variance < 80.0; // Sharpness threshold for low variance / blurry shots
+  // Dynamic Range Guard: uniform or night scenes
+  if ((maxVal - minVal) < 35) {
+    return const _BlurAnalysisResult(isBlurry: false, sharpness: 100.0);
+  }
+
+  final meanLap = sumLap / sumWeight;
+  final varianceLap = (sumSqLap / sumWeight) - (meanLap * meanLap);
+
+  final meanX = sumLapX / count;
+  final varX = (sumSqLapX / count) - (meanX * meanX);
+  final meanY = sumLapY / count;
+  final varY = (sumSqLapY / count) - (meanY * meanY);
+
+  String? blurType;
+  if (varianceLap < 95.0) {
+    if (varX > 3.0 * (varY + 1.0) || varY > 3.0 * (varX + 1.0)) {
+      blurType = 'motion';
+    } else {
+      blurType = 'out_of_focus';
+    }
+  }
+
+  final rawScore = math.min(100.0, (varianceLap / 3.0));
+  final sharpness = double.parse(rawScore.toStringAsFixed(1));
+  final isBlurry = varianceLap < 85.0;
+
+  return _BlurAnalysisResult(
+    isBlurry: isBlurry,
+    sharpness: sharpness,
+    blurType: blurType,
+  );
 }
 
 /// High-Performance Sparse Fast-Hasher for instant duplicate candidate matching.
@@ -353,10 +480,18 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
   final List<List<String>> duplicateGroups = [];
   final List<List<String>> similarGroups = [];
   final List<String> blurryPhotoIds = [];
+  final Map<String, double> sharpnessScores = {};
+  final Map<String, String> blurTypes = {};
 
   // 1. Exact duplicates: group by fast/complete hash
   final exactByHash = <String, List<String>>{};
+  final exactIds = <String>{};
+
   for (final item in items) {
+    sharpnessScores[item.id] = item.sharpnessScore;
+    if (item.blurType != null) {
+      blurTypes[item.id] = item.blurType!;
+    }
     if (item.md5 != null && item.md5!.isNotEmpty) {
       exactByHash.putIfAbsent(item.md5!, () => []).add(item.id);
     }
@@ -365,7 +500,6 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
     }
   }
 
-  final exactIds = <String>{};
   for (final group in exactByHash.values) {
     if (group.length > 1) {
       duplicateGroups.add(group);
@@ -373,7 +507,50 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
     }
   }
 
-  // 2. Similar groups: group within temporal clusters using 64-bit bitwise popcount
+  // 1.5 Cross-Resolution & Recompressed Deduplication (WhatsApp & Messaging replicas)
+  // Find items with >= 98.4% visual similarity (Hamming distance <= 2 on 128-bit dHash)
+  // and matching aspect ratio (+- 0.035) that were not caught by MD5 because of re-compression
+  final candidateReplicas = items.where((it) => it.dHash != null && !exactIds.contains(it.id)).toList();
+  final replicaGroupedIds = <String>{};
+
+  // Group candidate replicas by aspect ratio bucket to make comparison fast O(N * bucketSize)
+  final aspectBuckets = <int, List<ProcessedItem>>{};
+  for (final it in candidateReplicas) {
+    final bucketKey = (it.aspectRatio * 20).round();
+    aspectBuckets.putIfAbsent(bucketKey, () => []).add(it);
+  }
+
+  for (final bucketItems in aspectBuckets.values) {
+    if (bucketItems.length < 2) continue;
+    for (int i = 0; i < bucketItems.length; i++) {
+      final a = bucketItems[i];
+      if (replicaGroupedIds.contains(a.id) || exactIds.contains(a.id)) continue;
+
+      final List<String> currentReplicaGroup = [];
+      for (int j = i + 1; j < bucketItems.length; j++) {
+        final b = bucketItems[j];
+        if (replicaGroupedIds.contains(b.id) || exactIds.contains(b.id)) continue;
+
+        if ((a.aspectRatio - b.aspectRatio).abs() > 0.035) continue;
+
+        final dist = _hammingDistanceFast(a.dHashHigh, a.dHashLow, b.dHashHigh, b.dHashLow);
+        if (dist <= 2) {
+          currentReplicaGroup.add(b.id);
+          replicaGroupedIds.add(b.id);
+        }
+      }
+
+      if (currentReplicaGroup.isNotEmpty) {
+        replicaGroupedIds.add(a.id);
+        exactIds.add(a.id);
+        exactIds.addAll(currentReplicaGroup);
+        currentReplicaGroup.insert(0, a.id);
+        duplicateGroups.add(currentReplicaGroup);
+      }
+    }
+  }
+
+  // 2. Similar / Burst groups: group within temporal clusters using 64-bit bitwise popcount
   final clusterMap = <String, List<ProcessedItem>>{};
   for (final item in items) {
     if (item.dHash != null && !exactIds.contains(item.id)) {
@@ -417,7 +594,13 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
     }
   }
 
-  return ScanResult(duplicateGroups, similarGroups, blurryPhotoIds);
+  return ScanResult(
+    duplicateGroups,
+    similarGroups,
+    blurryPhotoIds,
+    sharpnessScores: sharpnessScores,
+    blurTypes: blurTypes,
+  );
 }
 
 void _log(SendPort port, String msg) {

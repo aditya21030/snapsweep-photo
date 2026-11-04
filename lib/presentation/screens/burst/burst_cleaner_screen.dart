@@ -187,9 +187,23 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     }
   }
 
-  String _getShotDefectTag(int photoIndex) {
-    const tags = ['Blurry', 'Eyes shut', 'Soft focus', 'Duplicate angle', 'Off-center'];
-    return tags[(photoIndex - 1) % tags.length];
+  String _getShotDefectTag(ScanProvider provider, AssetEntity asset, AssetEntity bestShot) {
+    final blurType = provider.getAssetBlurType(asset.id);
+    if (blurType == 'motion') {
+      return 'Motion blur';
+    }
+    if (blurType == 'out_of_focus') {
+      return 'Out of focus';
+    }
+    final sharpness = provider.getAssetSharpness(asset.id);
+    final bestSharpness = provider.getAssetSharpness(bestShot.id);
+    if (sharpness < 70.0) {
+      return 'Soft focus';
+    }
+    if (bestSharpness - sharpness > 10.0) {
+      return 'Lower clarity';
+    }
+    return 'Duplicate angle';
   }
 
   @override
@@ -443,28 +457,38 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                'Sharpness 96',
-                                                style: AppTypography.caption11(color: textColor, letterSpacing: 0),
-                                              ),
-                                              const Gap(8),
-                                              Text(
-                                                'Best lighting & clear eyes',
-                                                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
-                                              ),
-                                            ],
-                                          ),
-                                          const Gap(6),
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: LinearProgressIndicator(
-                                              value: 0.96,
-                                              backgroundColor: lilacChip,
-                                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
-                                              minHeight: 4,
-                                            ),
+                                          Builder(
+                                            builder: (context) {
+                                              final bestSharpness = provider.getAssetSharpness(bestShot.id).round().clamp(60, 100);
+                                              return Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        'Sharpness $bestSharpness%',
+                                                        style: AppTypography.caption11(color: textColor, letterSpacing: 0),
+                                                      ),
+                                                      const Gap(8),
+                                                      Text(
+                                                        'Best lighting & sharp focus',
+                                                        style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const Gap(6),
+                                                  ClipRRect(
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    child: LinearProgressIndicator(
+                                                      value: (bestSharpness / 100.0).clamp(0.0, 1.0),
+                                                      backgroundColor: lilacChip,
+                                                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                                                      minHeight: 4,
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
                                           ),
                                         ],
                                       ),
@@ -502,7 +526,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                           itemBuilder: (context, idx) {
                             final asset = redundantShots[idx];
                             final isSelected = _selectedIds.contains(asset.id);
-                            final defectTag = _getShotDefectTag(idx + 1);
+                            final defectTag = _getShotDefectTag(provider, asset, bestShot);
 
                             return GestureDetector(
                               onTap: () {

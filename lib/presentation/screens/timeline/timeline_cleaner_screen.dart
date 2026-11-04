@@ -17,7 +17,8 @@ class _MonthlyBucket {
   final int month;
   final String label;
   final List<AssetEntity> assets;
-  int totalBytes;
+  final int totalBytes;
+  final int tripClusterCount;
 
   _MonthlyBucket({
     required this.year,
@@ -25,6 +26,7 @@ class _MonthlyBucket {
     required this.label,
     required this.assets,
     required this.totalBytes,
+    this.tripClusterCount = 0,
   });
 }
 
@@ -54,12 +56,27 @@ class TimelineCleanerScreen extends StatelessWidget {
           ? 'Older / Undated Media'
           : DateFormat('MMMM yyyy').format(dt);
 
+      final bucketAssets = grouped[key]!;
+
+      // Event & Trip Clustering: detect photographic density spikes (>= 20 photos in a single day)
+      int tripClusterCount = 0;
+      final Map<int, int> dayCounts = {};
+      for (final a in bucketAssets) {
+        dayCounts[a.createDateTime.day] = (dayCounts[a.createDateTime.day] ?? 0) + 1;
+      }
+      for (final count in dayCounts.values) {
+        if (count >= 20) {
+          tripClusterCount += count;
+        }
+      }
+
       buckets.add(_MonthlyBucket(
         year: year,
         month: month,
         label: label,
-        assets: grouped[key]!,
+        assets: bucketAssets,
         totalBytes: bytesMap[key] ?? 0,
+        tripClusterCount: tripClusterCount,
       ));
     }
 
@@ -270,9 +287,38 @@ class TimelineCleanerScreen extends StatelessWidget {
                                       ),
                                     ),
                                     const Gap(10),
-                                    Text(
-                                      bucket.label,
-                                      style: AppTypography.subheading17(color: textColor),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          bucket.label,
+                                          style: AppTypography.subheading17(color: textColor),
+                                        ),
+                                        if (bucket.tripClusterCount >= 20) ...[
+                                          const Gap(4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.gold.withValues(alpha: 0.18),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.flight_takeoff_rounded, color: AppColors.gold, size: 11),
+                                                const Gap(4),
+                                                Text(
+                                                  'Trip / Event (${bucket.tripClusterCount})',
+                                                  style: AppTypography.caption11(
+                                                    color: isDark ? AppColors.gold : AppColors.ink,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ],
                                 ),

@@ -153,6 +153,33 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
       };
       filtered.removeWhere((a) => processedIds.contains(a.id));
 
+      // Smart Deck Ordering: Prioritize junk candidates (duplicate redundant copies,
+      // low-clarity blurry shots, screenshots) so the user reclaims maximum storage first.
+      final Set<String> duplicateIds = {
+        for (final group in provider.duplicateGroups)
+          if (group.length > 1)
+            for (int i = 1; i < group.length; i++) group[i].id,
+      };
+      final Set<String> blurryIds = {for (final a in provider.blurryPhotos) a.id};
+      final Set<String> screenshotIds = {for (final a in (provider.categories['Screenshots'] ?? [])) a.id};
+
+      filtered.sort((a, b) {
+        int scoreA = 0;
+        if (duplicateIds.contains(a.id)) scoreA += 100;
+        if (blurryIds.contains(a.id)) scoreA += 70;
+        if (screenshotIds.contains(a.id)) scoreA += 40;
+
+        int scoreB = 0;
+        if (duplicateIds.contains(b.id)) scoreB += 100;
+        if (blurryIds.contains(b.id)) scoreB += 70;
+        if (screenshotIds.contains(b.id)) scoreB += 40;
+
+        final scoreComp = scoreB.compareTo(scoreA);
+        if (scoreComp != 0) return scoreComp;
+
+        return b.createDateTime.compareTo(a.createDateTime);
+      });
+
       _activeAssets = filtered;
       _currentIndex = 0;
       _dragOffset = Offset.zero;
