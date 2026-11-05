@@ -313,11 +313,14 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 icon: const Icon(Icons.delete_sweep_rounded),
-                label: Text(
-                  _selectedIds.isEmpty
-                      ? 'Select Copies to Clean'
-                      : 'Move ${_selectedIds.length} Copies to Trash (${AppUtils.formatBytes(selectedSize)})',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _selectedIds.isEmpty
+                        ? 'Select Copies to Clean'
+                        : 'Move ${_selectedIds.length} Copies to Trash (${AppUtils.formatBytes(selectedSize)})',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
                 ),
               ),
             ),

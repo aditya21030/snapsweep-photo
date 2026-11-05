@@ -670,10 +670,14 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                       children: [
                         Text(
                           '${_selectedIds.length} selected',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: AppTypography.subheading17(color: Colors.white),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: AppTypography.meta13(color: AppColors.lilac),
                         ),
                       ],

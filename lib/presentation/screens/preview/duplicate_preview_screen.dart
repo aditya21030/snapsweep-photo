@@ -577,34 +577,43 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "${_selectedIds.length} selected",
-                            style: AppTypography.heading20(color: Colors.white)
-                                .copyWith(fontSize: 16),
-                          ),
-                          const Gap(2),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.shield_outlined,
-                                size: 12,
-                                color: Color(0xFFA49EBA),
-                              ),
-                              const Gap(4),
-                              Text(
-                                "$selectedSizeStr | 30-day Trash",
-                                style: AppTypography.meta13(
-                                  color: const Color(0xFFA49EBA),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "${_selectedIds.length} selected",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.heading20(color: Colors.white)
+                                  .copyWith(fontSize: 16),
+                            ),
+                            const Gap(2),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.shield_outlined,
+                                  size: 12,
+                                  color: Color(0xFFA49EBA),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                                const Gap(4),
+                                Expanded(
+                                  child: Text(
+                                    "$selectedSizeStr | 30-day Trash",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.meta13(
+                                      color: const Color(0xFFA49EBA),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
+                      const Gap(10),
                       ElevatedButton.icon(
                         onPressed: _selectedIds.isEmpty || _isProcessing
                             ? null

@@ -91,15 +91,19 @@ class CategoryCard extends StatelessWidget {
                       ),
                     ),
                     if (size != null && size!.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: iconBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          size!,
-                          style: AppTypography.caption11(color: textColor, letterSpacing: 0, fontWeight: FontWeight.w600),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: iconBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            size!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.caption11(color: textColor, letterSpacing: 0, fontWeight: FontWeight.w600),
+                          ),
                         ),
                       ),
                   ],
@@ -146,6 +150,8 @@ class CategoryCard extends StatelessWidget {
                 const Gap(2),
                 Text(
                   count,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.caption11(
                     color: mutedColor,
                     letterSpacing: 0,

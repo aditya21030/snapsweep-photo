@@ -120,6 +120,8 @@ class CategoriesScreen extends StatelessWidget {
                         const Gap(4),
                         Text(
                           '$totalCategorizedCount items | ${AppUtils.formatBytes(totalCategorizedBytes)} classified',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: AppTypography.body15(color: AppColors.lilac),
                         ),
                       ],
@@ -136,7 +138,7 @@ class CategoriesScreen extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 0.78,
+                    childAspectRatio: 0.74,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {

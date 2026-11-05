@@ -83,11 +83,15 @@ class FloatingNavBar extends StatelessWidget {
             ),
             if (isSelected) ...[
               const Gap(6),
-              Text(
-                label,
-                style: AppTypography.meta13(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.meta13(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

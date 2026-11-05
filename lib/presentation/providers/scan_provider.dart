@@ -218,6 +218,8 @@ class ScanProvider extends ChangeNotifier {
   int get totalDuplicateCount => _duplicateGroups.fold(0, (sum, group) => sum + group.length);
   int get totalSimilarCount => _similarGroups.fold(0, (sum, group) => sum + group.length);
 
+  static const int _currentCacheSchemaVersion = 2;
+
   Future<void> _loadCache() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
@@ -227,6 +229,18 @@ class ScanProvider extends ChangeNotifier {
       _scanCache = rawCache.map((key, value) {
         return MapEntry(key, Map<String, dynamic>.from(value as Map));
       });
+
+      final prefs = await SharedPreferences.getInstance();
+      final int savedVersion = prefs.getInt('scan_cache_schema_version') ?? 1;
+
+      if (savedVersion < _currentCacheSchemaVersion) {
+        // Discard legacy buggy category tags from previous algorithmic versions
+        for (var key in _scanCache.keys) {
+          _scanCache[key]!.remove('category');
+        }
+        await prefs.setInt('scan_cache_schema_version', _currentCacheSchemaVersion);
+        debugPrint('[CACHE UPGRADE] Discarded legacy category tags, upgraded to v$_currentCacheSchemaVersion');
+      }
 
       for (var entry in _scanCache.entries) {
         if (entry.value.containsKey('size')) {
@@ -1137,8 +1151,8 @@ class ScanProvider extends ChangeNotifier {
   Future<void> _refineCategoriesWithML(List<AssetEntity> items, int sessionId) async {
     if (items.isEmpty) return;
 
-    // Process up to 150 candidate photos in smooth background chunks
-    final candidates = items.take(150).toList();
+    // Process up to 300 candidate photos in smooth background chunks
+    final candidates = items.take(300).toList();
     bool anyChanged = false;
     int processedSinceNotify = 0;
 

@@ -54,41 +54,48 @@ class _TopBarSection extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            // SnapSweep Logo badge
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.violet.withValues(alpha: 0.22),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+        Expanded(
+          child: Row(
+            children: [
+              // SnapSweep Logo badge
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.violet.withValues(alpha: 0.22),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/app_icon_new.png',
+                    width: 38,
+                    height: 38,
+                    fit: BoxFit.cover,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  'assets/app_icon_new.png',
-                  width: 38,
-                  height: 38,
-                  fit: BoxFit.cover,
                 ),
               ),
-            ),
-            const Gap(10),
-            Text(
-              "SnapSweep",
-              style: AppTypography.heading20(
-                color: primaryTextColor,
-              ).copyWith(fontSize: 22),
-            ),
-          ],
+              const Gap(10),
+              Flexible(
+                child: Text(
+                  "SnapSweep",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.heading20(
+                    color: primaryTextColor,
+                  ).copyWith(fontSize: 22),
+                ),
+              ),
+            ],
+          ),
         ),
+        const Gap(8),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -261,13 +268,18 @@ class _LiveScanningSection extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    data.message.isEmpty ? "Scanning gallery..." : data.message,
-                    style: AppTypography.body15(
-                      color: isDark ? Colors.white : AppColors.ink,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      data.message.isEmpty ? "Scanning gallery..." : data.message,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.body15(
+                        color: isDark ? Colors.white : AppColors.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  const Gap(8),
                   Text(
                     "${(data.progress * 100).toInt()}%",
                     style: AppTypography.heading20(color: AppColors.violet),
@@ -371,34 +383,43 @@ class _HeroReclaimableCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "RECLAIMABLE NOW",
-                        style: AppTypography.caption11(
-                          color: AppColors.lilac,
-                          letterSpacing: 1.2,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "RECLAIMABLE NOW",
+                          style: AppTypography.caption11(
+                            color: AppColors.lilac,
+                            letterSpacing: 1.2,
+                          ),
                         ),
-                      ),
-                      const Gap(8),
-                      Text(
-                        data.isLoading ? "..." : data.reclaimableSize,
-                        style: AppTypography.display68(
-                          color: Colors.white,
-                        ).copyWith(fontSize: 48),
-                      ),
-                      const Gap(4),
-                      Text(
-                        data.isLoading
-                            ? "Analyzing gallery..."
-                            : "${data.totalItems} items to review",
-                        style: AppTypography.body15(
-                          color: const Color(0xFFA49EBA),
+                        const Gap(8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            data.isLoading ? "..." : data.reclaimableSize,
+                            style: AppTypography.display68(
+                              color: Colors.white,
+                            ).copyWith(fontSize: 48),
+                          ),
                         ),
-                      ),
-                    ],
+                        const Gap(4),
+                        Text(
+                          data.isLoading
+                              ? "Analyzing gallery..."
+                              : "${data.totalItems} items to review",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.body15(
+                            color: const Color(0xFFA49EBA),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const Gap(12),
                   // Stylized Illustration Placeholder (Page 1 / Page 6)
                   Container(
                     width: 76,
@@ -477,24 +498,39 @@ class _HeroReclaimableCard extends StatelessWidget {
 
               // Segment Sub-labels
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Duplicates ${data.dupSize}",
-                    style: AppTypography.meta13(
-                      color: const Color(0xFFA49EBA),
+                  Expanded(
+                    child: Text(
+                      "Duplicates ${data.dupSize}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.meta13(
+                        color: const Color(0xFFA49EBA),
+                      ),
                     ),
                   ),
-                  Text(
-                    "Videos ${data.vidSize}",
-                    style: AppTypography.meta13(
-                      color: const Color(0xFFA49EBA),
+                  const Gap(6),
+                  Expanded(
+                    child: Text(
+                      "Videos ${data.vidSize}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.meta13(
+                        color: const Color(0xFFA49EBA),
+                      ),
                     ),
                   ),
-                  Text(
-                    "Other ${data.otherSize}",
-                    style: AppTypography.meta13(
-                      color: const Color(0xFFA49EBA),
+                  const Gap(6),
+                  Expanded(
+                    child: Text(
+                      "Other ${data.otherSize}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: AppTypography.meta13(
+                        color: const Color(0xFFA49EBA),
+                      ),
                     ),
                   ),
                 ],
@@ -613,43 +649,46 @@ class _QuickToolsSection extends StatelessWidget {
             const Gap(14),
 
             // 2x2 Grid for Exact Duplicates & Burst
-            Row(
-              children: [
-                // Exact Duplicates (Solid Violet Card)
-                Expanded(
-                  child: _buildSolidToolCard(
-                    bg: AppColors.violet,
-                    textColor: Colors.white,
-                    subtextColor: Colors.white.withValues(alpha: 0.8),
-                    icon: Icons.copy_rounded,
-                    number: data.isLoading ? "..." : "${data.dupCount}",
-                    title: "Exact duplicates",
-                    subtitle: "${data.dupSize} safe to free",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/duplicates');
-                    },
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Exact Duplicates (Solid Violet Card)
+                  Expanded(
+                    child: _buildSolidToolCard(
+                      bg: AppColors.violet,
+                      textColor: Colors.white,
+                      subtextColor: Colors.white.withValues(alpha: 0.8),
+                      icon: Icons.copy_rounded,
+                      number: data.isLoading ? "..." : "${data.dupCount}",
+                      title: "Exact duplicates",
+                      subtitle: "${data.dupSize} safe to free",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/duplicates');
+                      },
+                    ),
                   ),
-                ),
-                const Gap(12),
+                  const Gap(12),
 
-                // Burst Best Shot (Solid Gold Card)
-                Expanded(
-                  child: _buildSolidToolCard(
-                    bg: AppColors.gold,
-                    textColor: AppColors.ink,
-                    subtextColor: AppColors.ink.withValues(alpha: 0.75),
-                    icon: Icons.burst_mode_rounded,
-                    number: data.isLoading ? "..." : "${data.burstCount}",
-                    title: "Burst - best shot",
-                    subtitle: "${data.burstSize} to review",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/burst-cleaner');
-                    },
+                  // Burst Best Shot (Solid Gold Card)
+                  Expanded(
+                    child: _buildSolidToolCard(
+                      bg: AppColors.gold,
+                      textColor: AppColors.ink,
+                      subtextColor: AppColors.ink.withValues(alpha: 0.75),
+                      icon: Icons.burst_mode_rounded,
+                      number: data.isLoading ? "..." : "${data.burstCount}",
+                      title: "Burst - best shot",
+                      subtitle: "${data.burstSize} to review",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/burst-cleaner');
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             const Gap(12),
@@ -755,13 +794,18 @@ class _QuickToolsSection extends StatelessWidget {
                 Icon(Icons.arrow_outward_rounded, size: 20, color: textColor),
               ],
             ),
-            const Gap(12),
+            const Gap(10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  number,
-                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    number,
+                    style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                  ),
                 ),
                 const Gap(2),
                 Text(
@@ -864,98 +908,104 @@ class _MoreToolsSection extends StatelessWidget {
             const Gap(14),
 
             // Row 1: Large videos & Compress and save
-            Row(
-              children: [
-                // Large videos (Deep Ink card)
-                Expanded(
-                  child: _buildMoreToolCard(
-                    context: context,
-                    bg: isDark ? const Color(0xFF0F0426) : AppColors.ink,
-                    textColor: Colors.white,
-                    subtextColor: const Color(0xFFA49EBA),
-                    iconContainerBg: AppColors.gold,
-                    iconColor: AppColors.ink,
-                    icon: Icons.videocam_rounded,
-                    number: data.isLoading ? "..." : "${data.vidCount}",
-                    title: "Large videos",
-                    subtitle: "${data.vidSize} total",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/large-videos');
-                    },
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Large videos (Deep Ink card)
+                  Expanded(
+                    child: _buildMoreToolCard(
+                      context: context,
+                      bg: isDark ? const Color(0xFF0F0426) : AppColors.ink,
+                      textColor: Colors.white,
+                      subtextColor: const Color(0xFFA49EBA),
+                      iconContainerBg: AppColors.gold,
+                      iconColor: AppColors.ink,
+                      icon: Icons.videocam_rounded,
+                      number: data.isLoading ? "..." : "${data.vidCount}",
+                      title: "Large videos",
+                      subtitle: "${data.vidSize} total",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/large-videos');
+                      },
+                    ),
                   ),
-                ),
-                const Gap(12),
+                  const Gap(12),
 
-                // Compress and save (Lilac Tinted Card)
-                Expanded(
-                  child: _buildMoreToolCard(
-                    context: context,
-                    bg: isDark ? const Color(0xFF200F48) : AppColors.lilac,
-                    textColor: isDark ? Colors.white : AppColors.ink,
-                    subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
-                    iconContainerBg: AppColors.violet,
-                    iconColor: Colors.white,
-                    icon: Icons.compress_rounded,
-                    number: "80%",
-                    title: "Compress and save",
-                    subtitle: "Up to, per video",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/media-compressor');
-                    },
+                  // Compress and save (Lilac Tinted Card)
+                  Expanded(
+                    child: _buildMoreToolCard(
+                      context: context,
+                      bg: isDark ? const Color(0xFF200F48) : AppColors.lilac,
+                      textColor: isDark ? Colors.white : AppColors.ink,
+                      subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      iconContainerBg: AppColors.violet,
+                      iconColor: Colors.white,
+                      icon: Icons.compress_rounded,
+                      number: "80%",
+                      title: "Compress and save",
+                      subtitle: "Up to, per video",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/media-compressor');
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             const Gap(12),
 
             // Row 2: WhatsApp & social + Screenshot expiry
-            Row(
-              children: [
-                // WhatsApp and social (Violet Card)
-                Expanded(
-                  child: _buildMoreToolCard(
-                    context: context,
-                    bg: AppColors.violet,
-                    textColor: Colors.white,
-                    subtextColor: Colors.white.withValues(alpha: 0.8),
-                    iconContainerBg: Colors.white,
-                    iconColor: AppColors.violet,
-                    icon: Icons.chat_bubble_rounded,
-                    number: data.isLoading ? "..." : "${data.socialCount}",
-                    title: "WhatsApp and social",
-                    subtitle: "${data.socialSize} to clean",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/messaging-cleaner');
-                    },
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // WhatsApp and social (Violet Card)
+                  Expanded(
+                    child: _buildMoreToolCard(
+                      context: context,
+                      bg: AppColors.violet,
+                      textColor: Colors.white,
+                      subtextColor: Colors.white.withValues(alpha: 0.8),
+                      iconContainerBg: Colors.white,
+                      iconColor: AppColors.violet,
+                      icon: Icons.chat_bubble_rounded,
+                      number: data.isLoading ? "..." : "${data.socialCount}",
+                      title: "WhatsApp and social",
+                      subtitle: "${data.socialSize} to clean",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/messaging-cleaner');
+                      },
+                    ),
                   ),
-                ),
-                const Gap(12),
+                  const Gap(12),
 
-                // Screenshot expiry (Light Card / Ink2)
-                Expanded(
-                  child: _buildMoreToolCard(
-                    context: context,
-                    bg: isDark ? AppColors.ink2 : Colors.white,
-                    textColor: isDark ? Colors.white : AppColors.ink,
-                    subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
-                    iconContainerBg: AppColors.gold,
-                    iconColor: AppColors.ink,
-                    icon: Icons.phone_android_rounded,
-                    number: data.isLoading ? "..." : "${data.screenshotCount}",
-                    title: "Screenshot expiry",
-                    subtitle: "Older than 30 days",
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      context.push('/screenshot-cleaner');
-                    },
-                    hasBorder: !isDark,
+                  // Screenshot expiry (Light Card / Ink2)
+                  Expanded(
+                    child: _buildMoreToolCard(
+                      context: context,
+                      bg: isDark ? AppColors.ink2 : Colors.white,
+                      textColor: isDark ? Colors.white : AppColors.ink,
+                      subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      iconContainerBg: AppColors.gold,
+                      iconColor: AppColors.ink,
+                      icon: Icons.phone_android_rounded,
+                      number: data.isLoading ? "..." : "${data.screenshotCount}",
+                      title: "Screenshot expiry",
+                      subtitle: "Older than 30 days",
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.push('/screenshot-cleaner');
+                      },
+                      hasBorder: !isDark,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             const Gap(12),
@@ -1074,13 +1124,18 @@ class _MoreToolsSection extends StatelessWidget {
                 Icon(Icons.arrow_outward_rounded, size: 18, color: textColor),
               ],
             ),
-            const Gap(12),
+            const Gap(10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  number,
-                  style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    number,
+                    style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                  ),
                 ),
                 const Gap(2),
                 Text(
@@ -1118,30 +1173,45 @@ class _TrashGuaranteeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.shield_outlined,
-            size: 20,
-            color: AppColors.violet,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        context.push('/trash');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.violet.withValues(alpha: 0.2),
           ),
-          const Gap(12),
-          Expanded(
-            child: Text(
-              "Every delete moves to Trash. Restore within 30 days.",
-              style: AppTypography.meta13(
-                color: isDark ? Colors.white : AppColors.ink,
-                fontWeight: FontWeight.w600,
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.shield_outlined,
+              size: 20,
+              color: AppColors.violet,
+            ),
+            const Gap(12),
+            Expanded(
+              child: Text(
+                "Every delete moves to Trash. Restore within 30 days.",
+                style: AppTypography.meta13(
+                  color: isDark ? Colors.white : AppColors.ink,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-        ],
+            const Gap(8),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: isDark ? AppColors.lilac : AppColors.violet,
+            ),
+          ],
+        ),
       ),
     );
   }
