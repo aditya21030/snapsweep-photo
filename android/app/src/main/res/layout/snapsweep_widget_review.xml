@@ -14,8 +14,7 @@
         android:text="TO REVIEW"
         android:textColor="#DBCAFF"
         android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.08" />
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/widget_review_size"

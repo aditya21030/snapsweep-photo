@@ -218,7 +218,7 @@ class ScanProvider extends ChangeNotifier {
   int get totalDuplicateCount => _duplicateGroups.fold(0, (sum, group) => sum + group.length);
   int get totalSimilarCount => _similarGroups.fold(0, (sum, group) => sum + group.length);
 
-  static const int _currentCacheSchemaVersion = 2;
+  static const int _currentCacheSchemaVersion = 3;
 
   Future<void> _loadCache() async {
     try {
@@ -845,7 +845,7 @@ class ScanProvider extends ChangeNotifier {
           Uint8List? thumb;
           if ((work.needsDHash && cachedDHash == null) || (work.checkBlur && cachedIsBlurry == null)) {
             try {
-              thumb = await work.asset.thumbnailDataWithSize(const ThumbnailSize.square(64));
+              thumb = await work.asset.thumbnailDataWithSize(const ThumbnailSize.square(256));
             } catch (_) {}
           }
 

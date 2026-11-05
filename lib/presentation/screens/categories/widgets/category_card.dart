@@ -62,15 +62,15 @@ class CategoryCard extends StatelessWidget {
     return RepaintBoundary(
       child: Material(
         color: cardBg,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(22),
           onTap: () {
             HapticFeedback.selectionClick();
             onTap();
           },
           child: Padding(
-            padding: const EdgeInsets.all(14.0),
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -108,44 +108,55 @@ class CategoryCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const Gap(10),
+                const Gap(8),
 
-                // Generous, prominent photo preview
+                // Generous, prominent photo preview filling available space edge-to-edge
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     child: Container(
                       width: double.infinity,
-                      color: iconBg.withValues(alpha: 0.12),
+                      height: double.infinity,
+                      color: iconBg.withValues(alpha: 0.15),
                       child: thumbnail != null
                           ? AssetEntityImage(
                               thumbnail!,
                               isOriginal: false,
-                              thumbnailSize: const ThumbnailSize.square(320),
+                              thumbnailSize: const ThumbnailSize.square(360),
                               fit: BoxFit.cover,
                               width: double.infinity,
+                              height: double.infinity,
                             )
                           : Center(
                               child: Icon(
                                 _getCategoryIcon(title),
-                                size: 36,
+                                size: 38,
                                 color: textColor.withValues(alpha: 0.35),
                               ),
                             ),
                     ),
                   ),
                 ),
-                const Gap(10),
+                const Gap(8),
 
-                // Bottom Titles: Clean 2-line wrapping so full name is visible
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.body15(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                  ).copyWith(height: 1.15),
+                // Bottom Titles: Clean 2-line wrapping so full name is visible without truncation
+                SizedBox(
+                  height: 34,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        height: 1.15,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
                 ),
                 const Gap(2),
                 Text(

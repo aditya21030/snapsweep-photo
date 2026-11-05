@@ -27,8 +27,7 @@
                 android:text="RECLAIMABLE"
                 android:textColor="#DBCAFF"
                 android:textSize="11sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.08" />
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/widget_reclaimable"
@@ -58,12 +57,11 @@
                 android:text="3,482 ITEMS"
                 android:textColor="#DBCAFF"
                 android:textSize="10sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.06" />
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Center Space (FrameLayout is supported by RemoteViews, View is not) -->
+    <!-- Center Space (FrameLayout is supported by RemoteViews) -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"

@@ -74,7 +74,7 @@ class _TopBarSection extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.asset(
-                    'assets/app_icon_new.png',
+                    'assets/app_logo.png',
                     width: 38,
                     height: 38,
                     fit: BoxFit.cover,
@@ -818,11 +818,14 @@ class _QuickToolsSection extends StatelessWidget {
                   ),
                 ),
                 const Gap(2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.meta13(color: subtextColor),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    subtitle,
+                    maxLines: 1,
+                    style: AppTypography.caption11(color: subtextColor, letterSpacing: 0),
+                  ),
                 ),
               ],
             ),
@@ -1148,11 +1151,14 @@ class _MoreToolsSection extends StatelessWidget {
                   ),
                 ),
                 const Gap(2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.meta13(color: subtextColor),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    subtitle,
+                    maxLines: 1,
+                    style: AppTypography.caption11(color: subtextColor, letterSpacing: 0),
+                  ),
                 ),
               ],
             ),

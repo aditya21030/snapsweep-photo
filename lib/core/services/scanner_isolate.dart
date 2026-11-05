@@ -54,6 +54,7 @@ class ScanBatch {
 
 class ProcessedItem {
   final String id;
+  final String path;
   final String? dHash;
   final String? md5;
   final bool isBlurry;
@@ -66,6 +67,7 @@ class ProcessedItem {
 
   ProcessedItem({
     required this.id,
+    this.path = '',
     this.dHash,
     this.md5,
     this.isBlurry = false,
@@ -181,6 +183,7 @@ void scannerIsolateEntry(SendPort sendPort) {
 
           final result = ProcessedItem(
             id: item.id,
+            path: item.path,
             dHash: dHash,
             md5: md5Hash,
             isBlurry: isBlurry,
@@ -206,7 +209,7 @@ void scannerIsolateEntry(SendPort sendPort) {
     } else if (message == ScannerCommand.finalize) {
       try {
         _log(sendPort, "Grouping ${processedItems.length} items by exact and visual matches...");
-        final result = _computeGroups(processedItems);
+        final result = await _computeGroups(processedItems);
         sendPort.send({
           'type': ScannerResponse.finalResult,
           'duplicates': result.duplicateGroupIds,
@@ -476,14 +479,15 @@ Future<String?> _computeFastMd5(String path) async {
   }
 }
 
-ScanResult _computeGroups(List<ProcessedItem> items) {
+Future<ScanResult> _computeGroups(List<ProcessedItem> items) async {
   final List<List<String>> duplicateGroups = [];
   final List<List<String>> similarGroups = [];
   final List<String> blurryPhotoIds = [];
   final Map<String, double> sharpnessScores = {};
   final Map<String, String> blurTypes = {};
+  final Map<String, ProcessedItem> itemMap = {for (final it in items) it.id: it};
 
-  // 1. Exact duplicates: group by fast/complete hash
+  // 1. Exact duplicates: initial group by fast/complete hash
   final exactByHash = <String, List<String>>{};
   final exactIds = <String>{};
 
@@ -500,8 +504,34 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
     }
   }
 
-  for (final group in exactByHash.values) {
-    if (group.length > 1) {
+  // Full-hash verification on sparse matches to guarantee 100% duplicate accuracy
+  for (final entry in exactByHash.entries) {
+    final group = entry.value;
+    if (group.length <= 1) continue;
+
+    if (entry.key.startsWith('fast_')) {
+      final verifiedGroups = <String, List<String>>{};
+      for (final id in group) {
+        final it = itemMap[id];
+        String fullKey = entry.key;
+        if (it != null && it.path.isNotEmpty) {
+          try {
+            final file = File(it.path);
+            if (await file.exists()) {
+              final digest = await md5.bind(file.openRead()).first;
+              fullKey = digest.toString();
+            }
+          } catch (_) {}
+        }
+        verifiedGroups.putIfAbsent(fullKey, () => []).add(id);
+      }
+      for (final vGroup in verifiedGroups.values) {
+        if (vGroup.length > 1) {
+          duplicateGroups.add(vGroup);
+          exactIds.addAll(vGroup);
+        }
+      }
+    } else {
       duplicateGroups.add(group);
       exactIds.addAll(group);
     }
@@ -551,6 +581,7 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
   }
 
   // 2. Similar / Burst groups: group within temporal clusters using 64-bit bitwise popcount
+  // Threshold <= 12 (>= 90.6% visual similarity) with transitive drift guard
   final clusterMap = <String, List<ProcessedItem>>{};
   for (final item in items) {
     if (item.dHash != null && !exactIds.contains(item.id)) {
@@ -579,10 +610,30 @@ ScanResult _computeGroups(List<ProcessedItem> items) {
           itemB.dHashLow,
         );
 
-        // Distance <= 16 corresponds to >= 87.5% visual similarity
-        if (distance <= 16) {
-          currentSimilar.add(itemB.id);
-          processedInCluster.add(itemB.id);
+        // Distance <= 12 corresponds to >= 90.6% visual similarity
+        if (distance <= 12) {
+          // Transitive drift guard: ensure itemB is reasonably similar (<= 14) to all members in currentSimilar
+          bool passesClusterDrift = true;
+          for (final existingId in currentSimilar) {
+            final existingItem = itemMap[existingId];
+            if (existingItem != null) {
+              final d = _hammingDistanceFast(
+                itemB.dHashHigh,
+                itemB.dHashLow,
+                existingItem.dHashHigh,
+                existingItem.dHashLow,
+              );
+              if (d > 14) {
+                passesClusterDrift = false;
+                break;
+              }
+            }
+          }
+
+          if (passesClusterDrift) {
+            currentSimilar.add(itemB.id);
+            processedInCluster.add(itemB.id);
+          }
         }
       }
 

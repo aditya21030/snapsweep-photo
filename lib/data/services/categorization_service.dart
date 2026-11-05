@@ -3,18 +3,28 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 class CategoryResult {
   final String category;
+  final double score;
   final String? debugInfo;
 
-  CategoryResult(this.category, {this.debugInfo});
+  CategoryResult(this.category, {this.score = 0.0, this.debugInfo});
 }
 
 class CategorizationService {
   final _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-  final _imageLabeler = ImageLabeler(options: ImageLabelerOptions(confidenceThreshold: 0.35));
+  final _imageLabeler = ImageLabeler(options: ImageLabelerOptions(confidenceThreshold: 0.40));
+  final _faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      performanceMode: FaceDetectorMode.fast,
+      enableContours: false,
+      enableLandmarks: false,
+      enableClassification: false,
+    ),
+  );
 
   static const List<String> availableCategories = [
     'Screenshots',
@@ -28,179 +38,138 @@ class CategorizationService {
     'Others',
   ];
 
-  static const List<String> _foodKeywords = [
-    'food', 'recipe', 'dish', 'cooking', 'dinner', 'lunch', 'breakfast', 'snack',
-    'dessert', 'cake', 'swiggy', 'zomato', 'pizza', 'burger', 'restaurant', 'cafe',
-    'coffee', 'tea', 'menu', 'baking', 'cocktail', 'juice', 'meal', 'curry', 'pasta'
-  ];
-
-  static const List<String> _foodLabels = [
+  // Specific high-confidence Food & Dining ML labels
+  static const Set<String> _foodLabels = {
     'food', 'dish', 'cuisine', 'meal', 'dessert', 'snack', 'tableware', 'ingredient',
     'recipe', 'meat', 'vegetable', 'fruit', 'drink', 'beverage', 'cocktail', 'coffee',
-    'tea', 'fast food', 'baked goods', 'bread', 'cake', 'pizza', 'burger', 'noodle',
-    'rice', 'curry', 'salad', 'seafood', 'soup', 'plate', 'bowl', 'fork', 'spoon',
-    'culinary', 'restaurant', 'pasta', 'cheese', 'ice cream', 'breakfast', 'lunch',
-    'dinner', 'sandwich', 'pastry', 'cookie', 'juice', 'alcohol', 'beer', 'wine',
-    'delicacy', 'platter', 'barbecue', 'buffet', 'brunch', 'confectionery', 'condiment'
-  ];
+    'fast food', 'baked goods', 'bread', 'cake', 'pizza', 'burger', 'noodle',
+    'rice', 'curry', 'salad', 'seafood', 'soup', 'plate', 'bowl', 'culinary',
+    'restaurant', 'pasta', 'cheese', 'ice cream', 'breakfast', 'lunch', 'dinner',
+    'sandwich', 'pastry', 'cookie', 'juice', 'alcohol', 'beer', 'wine', 'barbecue',
+  };
 
-  static const List<String> _personLabels = [
-    'person', 'face', 'smile', 'selfie', 'portrait', 'people', 'human', 'man',
-    'woman', 'girl', 'boy', 'child', 'baby', 'clothing', 'eyewear', 'sunglasses',
-    'hair', 'crowd', 'friendship', 'family', 'cheering', 'facial hair', 'beard',
-    'forehead', 'chin', 'neck', 'shoulder', 'gesture', 'flesh', 'head'
-  ];
-
-  static const List<String> _docLabels = [
-    'document', 'paper', 'text', 'book', 'newspaper', 'letter', 'receipt',
-    'invoice', 'bill', 'envelope', 'publication', 'handwriting', 'font',
+  // Specific high-confidence Document ML labels
+  static const Set<String> _docLabels = {
+    'document', 'paper', 'receipt', 'invoice', 'bill', 'handwriting',
     'identity document', 'passport', 'driver\'s license', 'certificate',
-    'ticket', 'business card', 'label', 'sheet music', 'flyer', 'page'
-  ];
+    'ticket', 'business card', 'flyer', 'page',
+  };
 
-  static const List<String> _memeLabels = [
-    'cartoon', 'comics', 'illustration', 'animated cartoon', 'meme', 'drawing',
-    'art', 'graphics', 'fiction', 'clip art', 'fictional character', 'graffiti',
-    'poster'
-  ];
+  // Specific high-confidence Meme ML labels
+  static const Set<String> _memeLabels = {
+    'cartoon', 'comics', 'illustration', 'animated cartoon', 'meme', 'clip art',
+    'fictional character', 'caricature',
+  };
 
-  static const List<String> _financeKeywords = [
-    'gpay', 'paytm', 'phonepe', 'bhim', 'cred', 'yono', 'paypal', 'payment', 'transfer',
-    'upi', 'credit', 'debit', 'balance', 'transaction', 'paid', 'wallet', 'rupees', 'rs.',
-    'rs ', 'inr', 'invoice', 'bill', 'receipt', 'tax', 'gst', 'gstin', 'bank', 'hdfc',
-    'sbi', 'icici', 'axis', 'kotak', 'pnb', 'neft', 'imps', 'order', 'booking', 'ticket',
-    'razorpay', 'stripe', 'bharatpe', 'statement', 'passbook', 'cheque', 'subtotal',
-    'grand total', 'net payable', 'amount due', 'due date', 'billing', 'cashier',
-    'merchant', 'swiggy', 'zomato', 'uber', 'ola', 'amazon', 'flipkart', 'cash receipt',
-    'order id', 'txn id', 'transaction id', 'reference no', 'ref no'
-  ];
-
-  static const List<String> _docKeywords = [
-    'aadhaar', 'aadhar', 'government of india', 'income tax department', 'permanent account number',
-    'pan card', 'pancard', 'driving license', 'driving licence', 'union of india', 'transport department',
-    'electoral photo', 'voter id', 'voter', 'election commission', 'passport', 'republic of india',
-    'identity', 'id card', 'id_card', 'certificate', 'marksheet', 'admit card', 'hall ticket',
-    'degree', 'diploma', 'university', 'college', 'school', 'examination', 'roll no',
-    'contract', 'agreement', 'affidavit', 'salary slip', 'salary', 'form 16', 'prescription',
-    'pdf', 'doc', 'camscanner', 'adobe scan', 'scanner', 'notes', 'textbook', 'report',
-    'date of birth', 'dob:', 'father\'s name', 'enrollment', 'registration no', 'declaration'
-  ];
-
-  static const List<String> _socialKeywords = [
-    'whatsapp', 'wa0', 'wa1', 'wa2', '_wa', '-wa', 'telegram', 'tg_', 'instagram', 'insta',
-    'messenger', 'snapchat', 'snap_', 'discord', 'signal', 'facebook', 'fb_', 'twitter',
-    'x_', 'pinterest', 'tiktok', 'viber', 'wechat', 'line', 'threads', 'gbwhatsapp',
-    'fmwhatsapp', 'inshot', 'capcut', 'vsco'
-  ];
-
-  static const List<String> _downloadKeywords = [
-    'download', 'downloads', 'browser', 'chrome', 'firefox', 'opera', 'edge', 'brave',
-    'ucbrowser', 'meme', 'reddit', '9gag', 'sticker', 'gif', 'webp', 'saved_image'
-  ];
-
-  static final RegExp _currencyRegex = RegExp(r'(?:₹|\$|€|£|rs\.?|inr)\s*\d+(?:[.,]\d{2})?', caseSensitive: false);
-  static final RegExp _transactionRegex = RegExp(r'\b(?:upi\s*ref|txn\s*id|transaction\s*id|invoice\s*no|gstin|subtotal|grand\s*total|net\s*payable|amount\s*paid|paid\s*to|transfer\s*successful)\b', caseSensitive: false);
+  // Regexes with strict word boundaries and required tokens
+  static final RegExp _currencyRegex = RegExp(r'\b(?:₹|rs\.?|inr|\$|€|£)\s*\d+(?:[.,]\d{2})?', caseSensitive: false);
+  static final RegExp _transactionRegex = RegExp(r'\b(?:gstin|txn\s*id|transaction\s*id|upi\s*ref|invoice\s*no|subtotal|grand\s*total|net\s*payable|amount\s*paid|paid\s*to|transfer\s*successful)\b', caseSensitive: false);
   static final RegExp _aadhaarRegex = RegExp(r'\b\d{4}\s\d{4}\s\d{4}\b');
   static final RegExp _panRegex = RegExp(r'\b[A-Z]{5}[0-9]{4}[A-Z]\b', caseSensitive: false);
   static final RegExp _dlRegex = RegExp(r'\b[A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7}\b', caseSensitive: false);
-  static final RegExp _memeSlangRegex = RegExp(r'\b(?:when you|me when|nobody:|pov|relatable|literally|bruh|bro|tbh|lmao|lol|caption this)\b', caseSensitive: false);
+  static final RegExp _memeSlangRegex = RegExp(r'\b(?:when you|me when|nobody:|pov|relatable|literally|bruh|bro|tbh|lmao|lol)\b', caseSensitive: false);
+
+  // Authoritative document keywords requiring word boundaries
+  static final RegExp _docKeywordsRegex = RegExp(r'\b(?:aadhaar|aadhar|government of india|income tax department|permanent account number|pan card|pancard|driving license|driving licence|voter id|election commission|marksheet|admit card|hall ticket|salary slip|form 16|prescription|camscanner|adobe scan)\b', caseSensitive: false);
+
+  // Authoritative finance keywords requiring word boundaries
+  static final RegExp _financeKeywordsRegex = RegExp(r'\b(?:gpay|paytm|phonepe|bhim|razorpay|bharatpe|passbook|bank statement|cash receipt|net banking|imps|neft)\b', caseSensitive: false);
 
   void dispose() {
     _textRecognizer.close();
     _imageLabeler.close();
+    _faceDetector.close();
   }
 
-  /// Instant metadata-based categorization for clearly defined buckets (Screenshots, WhatsApp, Downloads, Videos).
-  /// Returns null for ambiguous or Camera roll photos that require visual ML analysis.
+  /// Instant metadata-based categorization for clearly defined buckets.
+  /// Fix Bug 2: Screenshots check runs FIRST so app-name screenshots (e.g. Screenshot_Zomato) stay in Screenshots.
   String? quickCategorize(AssetEntity asset, {String? albumName}) {
     final title = (asset.title ?? '').toLowerCase();
     final path = (asset.relativePath ?? '').toLowerCase();
     final album = (albumName ?? '').toLowerCase();
-    final combined = '$title $path $album';
 
     // 1. Screen Recordings (Videos)
     if (asset.type == AssetType.video) {
-      if (combined.contains('screen') || combined.contains('record') || combined.contains('screencast')) {
+      if (album.contains('screen') || path.contains('screen') || title.contains('screen') ||
+          album.contains('record') || path.contains('record') || title.contains('screencast')) {
         return 'Screen Recordings';
       }
-      for (final kw in _socialKeywords) {
-        if (combined.contains(kw)) return 'Social & WhatsApp';
-      }
-      for (final kw in _downloadKeywords) {
-        if (combined.contains(kw)) return 'Memes & Downloads';
+      if (album.contains('whatsapp') || path.contains('whatsapp') || album.contains('telegram') || path.contains('telegram')) {
+        return 'Social & WhatsApp';
       }
       return null;
     }
 
-    // 2. High-confidence explicit file title matches
-    for (final kw in _financeKeywords) {
-      if (title.contains(kw)) return 'Bills & Finance';
-    }
-    for (final kw in _docKeywords) {
-      if (title.contains(kw)) return 'Documents & IDs';
-    }
+    // 2. Authoritative Screenshots (Checked BEFORE app-names so Screenshot_Zomato stays in Screenshots)
+    final bool isScreenshotFolder = album.contains('screenshot') || album.contains('screen shot') ||
+        path.contains('screenshots') || path.contains('screen_shot');
+    final bool isScreenshotTitle = title.startsWith('screenshot') || title.startsWith('screen_shot') ||
+        title.contains('screenshot_') || title.contains('scrn_') || title.contains('s_shot');
 
-    // 3. Authoritative Screenshots bucket or title
-    if (album.contains('screenshot') || album.contains('screen shot') || album.contains('capture') ||
-        path.contains('screenshot') || path.contains('capture') ||
-        title.contains('screenshot') || title.contains('screen_shot') || title.contains('screen shot') ||
-        title.contains('scrn_') || title.contains('s_shot') || title.startsWith('screen_')) {
+    if (isScreenshotFolder || isScreenshotTitle) {
       return 'Screenshots';
     }
 
-    // 4. Modern phone display aspect ratio (19:9 to 21.5:9) with PNG or screenshot dimensions
+    // Modern phone display aspect ratio (19:9 to 21.5:9) with PNG format or DCIM/Screenshots path
     if (asset.width > 0 && asset.height > 0) {
       final longer = max(asset.width, asset.height);
       final shorter = min(asset.width, asset.height);
       final ratio = longer / shorter;
-      if (ratio >= 1.95 && ratio <= 2.35 && (title.endsWith('.png') || path.contains('dcim/screenshots'))) {
+      if (ratio >= 1.95 && ratio <= 2.35 && (title.endsWith('.png') || path.contains('screenshots'))) {
         return 'Screenshots';
       }
     }
 
-    // 5. Authoritative Social Media / WhatsApp bucket or title
-    if (album.contains('whatsapp') || album.contains('telegram') || album.contains('instagram') ||
-        album.contains('snapchat') || album.contains('facebook') || album.contains('messenger') ||
-        album.contains('discord') || album.contains('signal') || album.contains('twitter') ||
-        album.contains('threads') || album.contains('pinterest')) {
+    // 3. Authoritative Social Media / WhatsApp bucket or title tags
+    if (album.contains('whatsapp') || path.contains('whatsapp') ||
+        album.contains('telegram') || path.contains('telegram') ||
+        album.contains('snapchat') || path.contains('snapchat') ||
+        album.contains('instagram') || path.contains('instagram')) {
       return 'Social & WhatsApp';
     }
-    for (final kw in _socialKeywords) {
-      if (title.contains(kw)) return 'Social & WhatsApp';
+    if (title.contains('-wa') || title.contains('_wa') || title.startsWith('wa') || title.contains('tg_')) {
+      return 'Social & WhatsApp';
     }
 
-    // 6. Authoritative Downloads bucket or title
-    if (album.contains('download') || album.contains('browser') || album.contains('chrome') ||
-        album.contains('opera') || album.contains('edge') || album.contains('firefox') ||
-        album.contains('meme') || album.contains('reddit') || album.contains('9gag') || album.contains('sticker')) {
+    // 4. Authoritative Downloads / Memes bucket
+    if (album.contains('download') || path.contains('download') ||
+        album.contains('reddit') || path.contains('reddit') ||
+        album.contains('9gag') || path.contains('9gag')) {
       return 'Memes & Downloads';
     }
-    for (final kw in _downloadKeywords) {
-      if (title.contains(kw)) return 'Memes & Downloads';
+
+    // 5. Authoritative Document scanners bucket
+    if (album.contains('camscanner') || album.contains('adobe scan') || album.contains('documents') ||
+        path.contains('camscanner') || path.contains('adobescan')) {
+      return 'Documents & IDs';
     }
 
-    // 7. Food & Dining keyword match in album or title
-    for (final kw in _foodKeywords) {
-      if (combined.contains(kw)) return 'Food & Dining';
-    }
-
-    // 8. Explicit Portraits & Selfies album or title matches
-    if (album.contains('selfie') || album.contains('portrait') || album.contains('portraits') ||
-        title.contains('selfie') || title.contains('portrait') || title.contains('face')) {
-      return 'Personal & Portraits';
-    }
-
+    // Return null for ambiguous or Camera roll photos so they proceed to visual ML analysis
     return null;
   }
 
-  /// Advanced ML Kit Content Classifier inspecting visual objects and printed text
+  /// Advanced ML Content Classifier with Multi-Signal Voting Engine.
+  /// Implements real ML Kit Face Detection, 1024px thumbnail OCR, and multi-signal scoring.
   Future<String> categorizeWithML(AssetEntity asset, {String? albumName}) async {
     final quick = quickCategorize(asset, albumName: albumName);
     if (quick != null) return quick;
 
+    // Multi-signal score accumulator
+    final Map<String, double> scores = {
+      'Personal & Portraits': 0.0,
+      'Food & Dining': 0.0,
+      'Bills & Finance': 0.0,
+      'Documents & IDs': 0.0,
+      'Memes & Downloads': 0.0,
+      'Screenshots': 0.0,
+      'Screen Recordings': 0.0,
+      'Social & WhatsApp': 0.0,
+    };
+
     File? tempFile;
+    File? ocrTempFile;
     try {
-      // Use downscaled 360x360 thumbnail for ML to avoid decoding 40MB raw photos
+      // 1. Fetch 360px thumbnail for fast visual labeling and face detection
       Uint8List? thumbBytes;
       try {
         thumbBytes = await asset.thumbnailDataWithSize(const ThumbnailSize.square(360));
@@ -209,7 +178,7 @@ class CategorizationService {
       File? file;
       if (thumbBytes != null && thumbBytes.isNotEmpty) {
         final tempDir = Directory.systemTemp;
-        tempFile = File('${tempDir.path}/snapsweep_ml_thumb_${asset.id.hashCode}_${DateTime.now().microsecondsSinceEpoch}.jpg');
+        tempFile = File('${tempDir.path}/snapsweep_ml_${asset.id.hashCode}_${DateTime.now().microsecondsSinceEpoch}.jpg');
         await tempFile.writeAsBytes(thumbBytes, flush: true);
         file = tempFile;
       } else {
@@ -222,117 +191,144 @@ class CategorizationService {
 
       final inputImage = InputImage.fromFile(file);
 
-      // 1. Run on-device Image Labeling
-      final labels = await _imageLabeler.processImage(inputImage);
+      // Signal 1: Real ML Kit Face Detection for Portraits
+      // If a face covers >= 8% of the frame, strongly vote for Personal & Portraits (+3.0)
+      try {
+        final faces = await _faceDetector.processImage(inputImage);
+        if (faces.isNotEmpty) {
+          final imgWidth = (asset.width > 0 ? asset.width : 360).toDouble();
+          final imgHeight = (asset.height > 0 ? asset.height : 360).toDouble();
+          final totalArea = imgWidth * imgHeight;
 
-      bool isFood = false;
-      bool isPerson = false;
-      bool isDocVisual = false;
-      bool isMeme = false;
+          bool significantFaceFound = false;
+          for (final face in faces) {
+            final faceArea = face.boundingBox.width * face.boundingBox.height;
+            if (totalArea > 0 && (faceArea / totalArea) >= 0.08) {
+              significantFaceFound = true;
+              break;
+            }
+          }
+          if (significantFaceFound || faces.length >= 2) {
+            scores['Personal & Portraits'] = (scores['Personal & Portraits'] ?? 0.0) + 3.0;
+          }
+        }
+      } catch (_) {}
+
+      // Signal 2: On-device Image Labeling at >= 0.6 confidence threshold
+      final labels = await _imageLabeler.processImage(inputImage);
+      int foodLabelHits = 0;
+      double maxFoodConf = 0.0;
+      bool hasTextHint = false;
 
       for (final l in labels) {
         final label = l.label.toLowerCase();
         final conf = l.confidence;
-        if (conf < 0.35) continue;
 
-        if (_foodLabels.any((k) => label.contains(k))) {
-          isFood = true;
-          break; // High confidence food detection
+        if (_foodLabels.contains(label)) {
+          foodLabelHits++;
+          if (conf > maxFoodConf) maxFoodConf = conf;
         }
-        if (_personLabels.any((k) => label.contains(k))) {
-          isPerson = true;
-        }
-        if (_docLabels.any((k) => label.contains(k))) {
-          isDocVisual = true;
-        }
-        if (_memeLabels.any((k) => label.contains(k))) {
-          isMeme = true;
-        }
-      }
 
-      if (isFood) return 'Food & Dining';
+        if (conf >= 0.60) {
+          if (_docLabels.contains(label)) {
+            scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.0;
+          }
+          if (_memeLabels.contains(label)) {
+            scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 2.0;
+          }
+        }
 
-      // 2. If visual hints indicate document/paper/receipt/text, run OCR
-      if (isDocVisual) {
-        final recognizedText = await _textRecognizer.processImage(inputImage);
-        final ocr = recognizedText.text.toLowerCase();
-        if (ocr.length >= 6) {
-          if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywords.any((kw) => ocr.contains(kw))) {
-            return 'Bills & Finance';
-          }
-          if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywords.any((kw) => ocr.contains(kw))) {
-            return 'Documents & IDs';
-          }
-          if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
-            return 'Memes & Downloads';
-          }
-          if (ocr.length > 50 || recognizedText.blocks.length >= 3) {
-            return 'Documents & IDs';
-          }
+        // Gate for OCR: label hints at text, font, paper, or document
+        if (label.contains('text') || label.contains('font') || label.contains('paper') ||
+            label.contains('document') || label.contains('receipt') || label.contains('web page')) {
+          hasTextHint = true;
         }
       }
 
-      if (isPerson) return 'Personal & Portraits';
-      if (isMeme) return 'Memes & Downloads';
+      // Food scoring rule: require >= 2 food labels or 1 label at >= 0.70 confidence
+      if (foodLabelHits >= 2 || maxFoodConf >= 0.70) {
+        scores['Food & Dining'] = (scores['Food & Dining'] ?? 0.0) + 2.5;
+      }
 
-      // 3. Second-chance OCR if labels contain font/text/display keywords
-      final hasTextHint = labels.any((l) {
-        final txt = l.label.toLowerCase();
-        return txt.contains('text') || txt.contains('font') || txt.contains('paper') ||
-               txt.contains('receipt') || txt.contains('screenshot') || txt.contains('web page');
-      });
+      // Signal 3: High-Resolution (1024px) OCR for Documents & Receipts
+      // Gated so OCR only runs on candidate documents / text / screenshots, not every photo
+      final bool needsOcr = hasTextHint || (scores['Documents & IDs'] ?? 0.0) > 0.0;
+      if (needsOcr) {
+        Uint8List? ocrBytes;
+        try {
+          ocrBytes = await asset.thumbnailDataWithSize(const ThumbnailSize.square(1024));
+        } catch (_) {}
 
-      if (hasTextHint) {
-        final recognizedText = await _textRecognizer.processImage(inputImage);
-        final ocr = recognizedText.text.toLowerCase();
-        if (ocr.length >= 6) {
-          if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywords.any((kw) => ocr.contains(kw))) {
-            return 'Bills & Finance';
-          }
-          if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywords.any((kw) => ocr.contains(kw))) {
-            return 'Documents & IDs';
-          }
-          if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
-            return 'Memes & Downloads';
-          }
-          if (ocr.length > 40) {
-            return 'Documents & IDs';
+        File? ocrFile;
+        if (ocrBytes != null && ocrBytes.isNotEmpty) {
+          final tempDir = Directory.systemTemp;
+          ocrTempFile = File('${tempDir.path}/snapsweep_ocr_${asset.id.hashCode}_${DateTime.now().microsecondsSinceEpoch}.jpg');
+          await ocrTempFile.writeAsBytes(ocrBytes, flush: true);
+          ocrFile = ocrTempFile;
+        } else {
+          ocrFile = file;
+        }
+
+        if (await ocrFile.exists()) {
+          final ocrImage = InputImage.fromFile(ocrFile);
+          final recognizedText = await _textRecognizer.processImage(ocrImage);
+          final ocr = recognizedText.text.toLowerCase();
+
+          if (ocr.length >= 6) {
+            // Bills & Finance: Currency amount pairing or transaction keywords
+            if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywordsRegex.hasMatch(ocr)) {
+              scores['Bills & Finance'] = (scores['Bills & Finance'] ?? 0.0) + 2.5;
+            }
+
+            // Documents & IDs: Govt IDs (Aadhaar, PAN, DL) or document keywords
+            if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywordsRegex.hasMatch(ocr)) {
+              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.5;
+            }
+
+            // Memes & Downloads: Meme slang phrases
+            if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
+              scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 1.5;
+            }
+
+            // Long printed text block indicator
+            if (ocr.length > 80 || recognizedText.blocks.length >= 4) {
+              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 1.5;
+            }
           }
         }
       }
 
-      return _fallbackCategory(asset, albumName: albumName);
+      // Multi-Signal Scoring Decision:
+      // Sort categories by accumulated score descending
+      final sortedEntries = scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      final top = sortedEntries[0];
+      final runnerUp = sortedEntries[1];
+
+      // Winner must achieve score >= 3.0 AND lead the runner-up by at least 1.5 points
+      if (top.value >= 3.0 && (top.value - runnerUp.value) >= 1.5) {
+        return top.key;
+      }
+
+      return 'Others';
     } catch (e) {
       debugPrint('[Categorization ML Error] $e');
       return _fallbackCategory(asset, albumName: albumName);
     } finally {
       if (tempFile != null) {
         try {
-          if (await tempFile.exists()) {
-            await tempFile.delete();
-          }
+          if (await tempFile.exists()) await tempFile.delete();
+        } catch (_) {}
+      }
+      if (ocrTempFile != null) {
+        try {
+          if (await ocrTempFile.exists()) await ocrTempFile.delete();
         } catch (_) {}
       }
     }
   }
 
   String _fallbackCategory(AssetEntity asset, {String? albumName}) {
-    if (asset.type == AssetType.video) return 'Screen Recordings';
-
-    if (asset.width > 0 && asset.height > 0) {
-      final longer = max(asset.width, asset.height);
-      final shorter = min(asset.width, asset.height);
-      final ratio = longer / shorter;
-
-      // 1:1 Square images
-      if (ratio >= 0.95 && ratio <= 1.05) return 'Memes & Downloads';
-
-      // Smartphone screenshot ratio
-      if (ratio >= 1.95 && ratio <= 2.35) return 'Screenshots';
-
-      return 'Others';
-    }
-
+    // Unresolved assets default to 'Others' without guessing from aspect ratio
     return 'Others';
   }
 }

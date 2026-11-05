@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:initialKeyguardLayout="@layout/snapsweep_widget_review"
     android:initialLayout="@layout/snapsweep_widget_review"
     android:minWidth="130dp"
     android:minHeight="110dp"
     android:minResizeWidth="100dp"
     android:minResizeHeight="90dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />

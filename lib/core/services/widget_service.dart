@@ -35,18 +35,21 @@ class WidgetService {
       await HomeWidget.updateWidget(
         name: appWidgetProvider,
         androidName: appWidgetProvider,
+        qualifiedAndroidName: 'com.yousful.snapsweep.$appWidgetProvider',
       );
 
       // Update 2x2 To Review Widget (Page 31/61)
       await HomeWidget.updateWidget(
         name: reviewWidgetProvider,
         androidName: reviewWidgetProvider,
+        qualifiedAndroidName: 'com.yousful.snapsweep.$reviewWidgetProvider',
       );
 
       // Update 2x2 Swipe Widget (Page 31/61)
       await HomeWidget.updateWidget(
         name: swipeWidgetProvider,
         androidName: swipeWidgetProvider,
+        qualifiedAndroidName: 'com.yousful.snapsweep.$swipeWidgetProvider',
       );
     } catch (e) {
       debugPrint('[WidgetService Sync Error] $e');
