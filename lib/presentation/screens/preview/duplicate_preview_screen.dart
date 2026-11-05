@@ -91,7 +91,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                   ),
                   const Gap(18),
                   Text(
-                    "Move ${_selectedIds.length} items to Trash?",
+                    "Delete ${_selectedIds.length} items?",
                     textAlign: TextAlign.center,
                     style: AppTypography.heading20(
                       color: isDark ? Colors.white : AppColors.ink,
@@ -99,7 +99,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                   ),
                   const Gap(10),
                   Text(
-                    "That frees $freedSizeStr. You can restore them from your gallery Trash for 30 days.",
+                    "That frees $freedSizeStr. Selected items will be permanently deleted.",
                     textAlign: TextAlign.center,
                     style: AppTypography.body15(
                       color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
@@ -121,7 +121,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                       ),
                       onPressed: () => Navigator.pop(context, true),
                       child: Text(
-                        "Move to Trash",
+                        "Delete Permanently",
                         style: AppTypography.button15(color: Colors.white),
                       ),
                     ),
@@ -163,7 +163,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
               SnackBar(
                 backgroundColor: AppColors.ink,
                 content: Text(
-                  'Moved ${result.length} photos to Trash ($freedSizeStr freed)',
+                  'Successfully deleted ${result.length} photos ($freedSizeStr freed)',
                   style: AppTypography.body15(color: Colors.white),
                 ),
               ),

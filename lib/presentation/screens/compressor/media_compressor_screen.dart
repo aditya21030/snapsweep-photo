@@ -269,7 +269,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               SnackBar(
                 backgroundColor: AppColors.ink,
                 content: Text(
-                  'Original moved to Trash! Saved ${AppUtils.formatBytes(savedBytes)}',
+                  'Original deleted! Saved ${AppUtils.formatBytes(savedBytes)}',
                   style: AppTypography.body15(color: Colors.white),
                 ),
                 behavior: SnackBarBehavior.floating,
@@ -815,7 +815,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                'Move original to Trash',
+                'Delete original file',
                 style: AppTypography.subheading17(color: textColor),
               ),
               subtitle: Text(

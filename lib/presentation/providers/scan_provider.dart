@@ -218,7 +218,7 @@ class ScanProvider extends ChangeNotifier {
   int get totalDuplicateCount => _duplicateGroups.fold(0, (sum, group) => sum + group.length);
   int get totalSimilarCount => _similarGroups.fold(0, (sum, group) => sum + group.length);
 
-  static const int _currentCacheSchemaVersion = 3;
+  static const int _currentCacheSchemaVersion = 4;
 
   Future<void> _loadCache() async {
     try {
@@ -1011,6 +1011,7 @@ class ScanProvider extends ChangeNotifier {
     _duplicateSize = 0;
     _similarSize = 0;
 
+    // 1. Extra duplicate copies (redundant copies to remove)
     for (var group in _duplicateGroups) {
       if (group.length < 2) continue;
       final sorted = List<AssetEntity>.from(group);
@@ -1027,9 +1028,48 @@ class ScanProvider extends ChangeNotifier {
       }
     }
 
+    // 2. Large Videos (heavy files to review/clean)
+    for (final v in _largeVideos) {
+      if (!_smartCleanCandidates.any((c) => c.id == v.id)) {
+        _smartCleanCandidates.add(v);
+        final size = _assetSizes[v.id] ?? 0;
+        _smartCleanSize += size;
+        if (_smartCleanPreviews.length < 4) {
+          _smartCleanPreviews.add(v);
+        }
+      }
+    }
+
+    // 3. Blurry Photos (poor quality shots to clean)
+    for (final b in _blurryPhotos) {
+      if (!_smartCleanCandidates.any((c) => c.id == b.id)) {
+        _smartCleanCandidates.add(b);
+        final size = _assetSizes[b.id] ?? 0;
+        _smartCleanSize += size;
+        if (_smartCleanPreviews.length < 4) {
+          _smartCleanPreviews.add(b);
+        }
+      }
+    }
+
+    // 4. Redundant Burst / Similar Shots (non-keeper shots safe to review and clean)
     for (final group in _similarGroups) {
       for (final a in group) {
         _similarSize += _assetSizes[a.id] ?? 0;
+      }
+      if (group.length > 1) {
+        for (int i = 1; i < group.length; i++) {
+          final a = group[i];
+          if (!_smartCleanCandidates.any((c) => c.id == a.id)) {
+            _smartCleanCandidates.add(a);
+            _smartCleanIds.add(a.id);
+            final size = _assetSizes[a.id] ?? 0;
+            _smartCleanSize += size;
+            if (_smartCleanPreviews.length < 4) {
+              _smartCleanPreviews.add(a);
+            }
+          }
+        }
       }
     }
   }
@@ -1151,17 +1191,20 @@ class ScanProvider extends ChangeNotifier {
   Future<void> _refineCategoriesWithML(List<AssetEntity> items, int sessionId) async {
     if (items.isEmpty) return;
 
-    // Process up to 300 candidate photos in smooth background chunks
-    final candidates = items.take(300).toList();
+    // Process all candidate photos needing ML in smooth non-blocking micro-chunks
+    final candidates = items.take(2500).toList();
     bool anyChanged = false;
     int processedSinceNotify = 0;
 
-    for (final asset in candidates) {
+    for (int i = 0; i < candidates.length; i++) {
       if (_scanSessionId != sessionId) return;
+      final asset = candidates[i];
 
-      // Yield time to the UI thread to ensure 60/120 fps smoothness
-      await Future.delayed(const Duration(milliseconds: 15));
-      if (_scanSessionId != sessionId) return;
+      // Yield every 5 items to keep UI butter-smooth at 120fps
+      if (i % 5 == 0) {
+        await Future.delayed(const Duration(milliseconds: 2));
+        if (_scanSessionId != sessionId) return;
+      }
 
       final albumName = _assetAlbumMap[asset.id];
       final detectedCat = await _categorizationService.categorizeWithML(asset, albumName: albumName);
@@ -1177,8 +1220,8 @@ class ScanProvider extends ChangeNotifier {
       if (!_scanCache.containsKey(asset.id)) _scanCache[asset.id] = {};
       _scanCache[asset.id]!['category'] = detectedCat;
 
-      // Periodically update UI every 10 categorized items
-      if (processedSinceNotify >= 10 && _scanSessionId == sessionId) {
+      // Periodically update UI every 12 categorized items
+      if (processedSinceNotify >= 12 && _scanSessionId == sessionId) {
         processedSinceNotify = 0;
         _recalculateCategorySizes();
         notifyListeners();

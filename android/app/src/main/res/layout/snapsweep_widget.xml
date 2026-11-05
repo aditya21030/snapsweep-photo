@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:orientation="vertical"
     android:padding="16dp">
 
     <!-- Top Row: Metric & Pill Badge -->
     <LinearLayout
+        android:id="@+id/widget_top_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -45,9 +46,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/widget_pill_badge"
-            android:paddingStart="10dp"
+            android:paddingLeft="10dp"
             android:paddingTop="5dp"
-            android:paddingEnd="10dp"
+            android:paddingRight="10dp"
             android:paddingBottom="5dp">
 
             <TextView
@@ -55,22 +56,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="3,482 ITEMS"
-                android:textColor="#DBCAFF"
+                android:textColor="#12052D"
                 android:textSize="10sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Center Space (FrameLayout is supported by RemoteViews) -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
     <!-- Bottom Actions Row -->
     <LinearLayout
+        android:id="@+id/widget_bottom_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -78,7 +75,7 @@
             android:id="@+id/widget_btn_clean"
             android:layout_width="0dp"
             android:layout_height="40dp"
-            android:layout_marginEnd="6dp"
+            android:layout_marginRight="6dp"
             android:layout_weight="1"
             android:background="@drawable/widget_button_clean"
             android:gravity="center"
@@ -91,7 +88,7 @@
             android:id="@+id/widget_btn_swipe"
             android:layout_width="0dp"
             android:layout_height="40dp"
-            android:layout_marginStart="6dp"
+            android:layout_marginLeft="6dp"
             android:layout_weight="1"
             android:background="@drawable/widget_button_swipe"
             android:gravity="center"
@@ -100,4 +97,4 @@
             android:textSize="13sp"
             android:textStyle="bold" />
     </LinearLayout>
-</LinearLayout>
+</RelativeLayout>

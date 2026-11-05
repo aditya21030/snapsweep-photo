@@ -69,108 +69,142 @@ class CategoryCard extends StatelessWidget {
             HapticFeedback.selectionClick();
             onTap();
           },
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Row: Category Icon + Size Pill
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: iconBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _getCategoryIcon(title),
-                        color: textColor,
-                        size: 16,
-                      ),
-                    ),
-                    if (size != null && size!.isNotEmpty)
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: iconBg,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            size!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.caption11(color: textColor, letterSpacing: 0, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const Gap(8),
-
-                // Generous, prominent photo preview filling available space edge-to-edge
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      width: double.infinity,
-                      height: double.infinity,
-                      color: iconBg.withValues(alpha: 0.15),
-                      child: thumbnail != null
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Section: Prominent, edge-to-edge photo preview (never small or boxed)
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      thumbnail != null
                           ? AssetEntityImage(
                               thumbnail!,
                               isOriginal: false,
-                              thumbnailSize: const ThumbnailSize.square(360),
+                              thumbnailSize: const ThumbnailSize.square(500),
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: iconBg.withValues(alpha: 0.18),
+                                child: Center(
+                                  child: Icon(
+                                    _getCategoryIcon(title),
+                                    size: 42,
+                                    color: textColor.withValues(alpha: 0.4),
+                                  ),
+                                ),
+                              ),
                             )
-                          : Center(
-                              child: Icon(
-                                _getCategoryIcon(title),
-                                size: 38,
-                                color: textColor.withValues(alpha: 0.35),
+                          : Container(
+                              color: iconBg.withValues(alpha: 0.18),
+                              child: Center(
+                                child: Icon(
+                                  _getCategoryIcon(title),
+                                  size: 42,
+                                  color: textColor.withValues(alpha: 0.4),
+                                ),
                               ),
                             ),
-                    ),
+
+                      // Gradient overlay for contrast
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.35),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.15),
+                              ],
+                              stops: const [0.0, 0.4, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Top Row: Category Icon Pill (Left) & Size Pill (Right)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        right: 8,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _getCategoryIcon(title),
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                            if (size != null && size!.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.50),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text(
+                                  size!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const Gap(8),
+              ),
 
-                // Bottom Titles: Clean 2-line wrapping so full name is visible without truncation
-                SizedBox(
-                  height: 34,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
+              // Bottom Section: Clean, non-overflowing Title and Count
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
                       title,
                       maxLines: 2,
-                      softWrap: true,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.bold,
-                        height: 1.15,
                         color: textColor,
+                        height: 1.15,
                       ),
                     ),
-                  ),
+                    const Gap(2),
+                    Text(
+                      count,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption11(
+                        color: mutedColor,
+                        letterSpacing: 0,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const Gap(2),
-                Text(
-                  count,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.caption11(
-                    color: mutedColor,
-                    letterSpacing: 0,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -32,8 +32,6 @@ class CleanerTab extends StatelessWidget {
           Gap(28),
           _MoreToolsSection(),
           Gap(20),
-          _TrashGuaranteeCard(),
-          Gap(12),
         ],
       ),
     );
@@ -74,7 +72,7 @@ class _TopBarSection extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.asset(
-                    'assets/app_logo.png',
+                    'assets/snap_icon_gradient.png',
                     width: 38,
                     height: 38,
                     fit: BoxFit.cover,
@@ -96,14 +94,13 @@ class _TopBarSection extends StatelessWidget {
           ),
         ),
         const Gap(8),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Trash / Recovery quick button
-            GestureDetector(
-              onTap: () {
+        Selector<ScanProvider, bool>(
+          selector: (_, p) => p.isLoading,
+          builder: (context, isLoading, _) {
+            return GestureDetector(
+              onTap: isLoading ? null : () {
                 HapticFeedback.selectionClick();
-                context.push('/trash');
+                context.read<ScanProvider>().scan(force: true);
               },
               child: Container(
                 width: 40,
@@ -116,54 +113,24 @@ class _TopBarSection extends StatelessWidget {
                   ),
                 ),
                 child: Center(
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 20,
-                    color: isDark ? const Color(0xFFFF7A88) : AppColors.trashRedLight,
-                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.violet,
+                          ),
+                        )
+                      : Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white : AppColors.ink,
+                        ),
                 ),
               ),
-            ),
-            const Gap(8),
-            Selector<ScanProvider, bool>(
-              selector: (_, p) => p.isLoading,
-              builder: (context, isLoading, _) {
-                return GestureDetector(
-                  onTap: isLoading ? null : () {
-                    HapticFeedback.selectionClick();
-                    context.read<ScanProvider>().scan(force: true);
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.ink2 : Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.lilac2,
-                      ),
-                    ),
-                    child: Center(
-                      child: isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.violet,
-                              ),
-                            )
-                          : Icon(
-                              Icons.refresh_rounded,
-                              size: 20,
-                              color: isDark ? Colors.white : AppColors.ink,
-                            ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
       ],
     );
@@ -345,13 +312,12 @@ class _HeroReclaimableCard extends StatelessWidget {
       int smartCleanBytes,
     })>(
       selector: (_, p) {
-        final totalReclaim = p.duplicateSize + p.largeVideosSize;
+        final totalReclaim = p.smartCleanSize;
+        final totalItems = p.smartCleanCandidates.length;
         return (
           isLoading: p.isLoading,
-          totalItems: p.totalDuplicateCount + p.largeVideos.length,
-          reclaimableSize: totalReclaim > 0
-              ? AppUtils.formatBytes(totalReclaim)
-              : p.formattedSmartCleanSize,
+          totalItems: totalItems,
+          reclaimableSize: AppUtils.formatBytes(totalReclaim),
           dupSize: p.formattedDuplicateSize,
           vidSize: p.formattedLargeVideosSize,
           otherSize: p.formattedBlurrySize,
@@ -545,11 +511,7 @@ class _HeroReclaimableCard extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     HapticFeedback.selectionClick();
-                    if (data.smartCleanBytes > 0) {
-                      context.push('/smart-clean');
-                    } else {
-                      context.push('/duplicates');
-                    }
+                    context.push('/smart-clean');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.gold,
@@ -1161,60 +1123,6 @@ class _MoreToolsSection extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------
-// 7. TRASH GUARANTEE CARD (Page 7 / 37)
-// ---------------------------------------------------------
-class _TrashGuaranteeCard extends StatelessWidget {
-  const _TrashGuaranteeCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        context.push('/trash');
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF281357) : AppColors.lilac,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.violet.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.shield_outlined,
-              size: 20,
-              color: AppColors.violet,
-            ),
-            const Gap(12),
-            Expanded(
-              child: Text(
-                "Every delete moves to Trash. Restore within 30 days.",
-                style: AppTypography.meta13(
-                  color: isDark ? Colors.white : AppColors.ink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const Gap(8),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 14,
-              color: isDark ? AppColors.lilac : AppColors.violet,
             ),
           ],
         ),

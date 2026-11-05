@@ -71,14 +71,14 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
               const Gap(14),
               Expanded(
                 child: Text(
-                  'Move to Trash?',
+                  'Delete Items?',
                   style: AppTypography.heading20(color: textColor),
                 ),
               ),
             ],
           ),
           content: Text(
-            '${_selectedIds.length} item(s) from ${widget.title} will be moved to device Trash.\n\nYou can restore them within 30 days if needed.',
+            '${_selectedIds.length} item(s) from ${widget.title} will be permanently deleted.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -95,7 +95,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
               ),
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
-              label: Text('Move to Trash', style: AppTypography.button15(color: Colors.white)),
+              label: Text('Delete Permanently', style: AppTypography.button15(color: Colors.white)),
             ),
           ],
         ),
@@ -115,7 +115,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
             SnackBar(
               backgroundColor: AppColors.ink,
               content: Text(
-                'Moved $count items from ${widget.title} to Trash',
+                'Successfully deleted $count items from ${widget.title}',
                 style: AppTypography.body15(color: Colors.white),
               ),
             ),
@@ -576,7 +576,7 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                     onPressed: _isProcessing ? null : _cleanSelected,
                     icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
                     label: Text(
-                      'Move to Trash',
+                      'Delete Selected',
                       style: AppTypography.button15(color: AppColors.ink),
                     ),
                   ),

@@ -83,14 +83,14 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
               const Gap(14),
               Expanded(
                 child: Text(
-                  'Move to Trash?',
+                  'Delete Photos?',
                   style: AppTypography.heading20(color: textColor),
                 ),
               ),
             ],
           ),
           content: Text(
-            '${_selectedIds.length} redundant burst photo(s) will be moved to device Trash.\n\nYour best crowned shots will be safely kept and locked.',
+            '${_selectedIds.length} redundant burst photo(s) will be permanently deleted.\n\nYour best crowned shots will be safely kept and locked.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -111,7 +111,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
               label: Text(
-                'Move to Trash',
+                'Delete Permanently',
                 style: AppTypography.button15(color: Colors.white),
               ),
             ),
@@ -139,7 +139,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               content: Text(
-                'Moved $count redundant shots to Trash',
+                'Successfully deleted $count redundant shots',
                 style: AppTypography.body15(color: Colors.white),
               ),
             ),
@@ -370,7 +370,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '$toTrashCount TO TRASH',
+                              '$toTrashCount TO DELETE',
                               style: AppTypography.caption11(color: lilacChipText, letterSpacing: 0.5),
                             ),
                           ),
@@ -657,7 +657,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Keep best, trash rest',
+                          'Keep best, delete rest',
                           style: AppTypography.subheading17(color: Colors.white),
                         ),
                         Text(

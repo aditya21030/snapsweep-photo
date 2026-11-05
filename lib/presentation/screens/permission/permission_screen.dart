@@ -212,8 +212,8 @@ class _PermissionScreenState extends State<PermissionScreen> {
                     ),
                     _buildBenefitRow(
                       icon: Icons.delete_outline_rounded,
-                      title: "Deletes go to Trash",
-                      subtitle: "Restore within 30 days",
+                      title: "Direct Storage Recovery",
+                      subtitle: "Frees device space instantly",
                       primaryText: primaryTextColor,
                       secondaryText: secondaryTextColor,
                       iconBg: isDark

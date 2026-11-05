@@ -380,7 +380,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "TRASH QUEUE",
+                                "DELETION QUEUE",
                                 style: AppTypography.caption11(
                                   color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
                                   letterSpacing: 1.0,
@@ -521,7 +521,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                                 color: AppColors.ink,
                               ),
                               label: Text(
-                                "Move ${selectedForDeletion.length} to Trash",
+                                "Delete ${selectedForDeletion.length} Permanently",
                                 style: AppTypography.button15(color: AppColors.ink)
                                     .copyWith(fontSize: 16),
                               ),
@@ -573,7 +573,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully moved ${result.length} photos to Trash'),
+            content: Text('Successfully deleted ${result.length} photos'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -803,7 +803,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                       iconColor: Colors.white,
                       size: 64,
                       iconSize: 30,
-                      tooltip: 'Move to Trash (Swipe Left)',
+                      tooltip: 'Delete (Swipe Left)',
                       onPressed: () => _triggerSwipe(SwipeAction.trash),
                     ),
 
@@ -937,7 +937,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                   child: Opacity(
                     opacity: trashProgress,
                     child: _buildActionBadge(
-                      label: 'TRASH',
+                      label: 'DELETE',
                       bgColor: AppColors.trashRedLight,
                       textColor: Colors.white,
                       icon: Icons.close_rounded,
@@ -1261,7 +1261,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             const Gap(8),
             Text(
               _trashQueue.isNotEmpty
-                  ? 'You reviewed this batch. Tap below to confirm and move items to Trash.'
+                  ? 'You reviewed this batch. Tap below to confirm and delete items permanently.'
                   : 'No photos to review in ${_selectedScope.label}. Choose another album above.',
               textAlign: TextAlign.center,
               style: AppTypography.body15(

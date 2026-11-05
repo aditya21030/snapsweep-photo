@@ -38,7 +38,18 @@ class CategorizationService {
     'Others',
   ];
 
-  // Specific high-confidence Food & Dining ML labels
+  // High-confidence Person & Portrait ML labels
+  static const Set<String> _personLabels = {
+    'person', 'people', 'human', 'man', 'woman', 'girl', 'boy', 'child', 'baby',
+    'selfie', 'portrait', 'smile', 'facial expression', 'head', 'face', 'forehead',
+    'friendship', 'family', 'cheering', 'crowd', 'eyewear', 'sunglasses', 'toddler',
+    'clothing', 'outerwear', 'dress', 'fashion', 'suit', 'jeans', 't-shirt', 'shirt',
+    'jacket', 'footwear', 'shoe', 'pants', 'trousers', 'lady', 'male', 'female', 'kid',
+    'bride', 'groom', 'wedding', 'standing', 'sitting', 'posing', 'model', 'beauty',
+    'fun', 'vacation', 'holiday', 'leisure', 'party', 'athlete', 'player', 'spectator',
+  };
+
+  // High-confidence Food & Dining ML labels
   static const Set<String> _foodLabels = {
     'food', 'dish', 'cuisine', 'meal', 'dessert', 'snack', 'tableware', 'ingredient',
     'recipe', 'meat', 'vegetable', 'fruit', 'drink', 'beverage', 'cocktail', 'coffee',
@@ -46,19 +57,26 @@ class CategorizationService {
     'rice', 'curry', 'salad', 'seafood', 'soup', 'plate', 'bowl', 'culinary',
     'restaurant', 'pasta', 'cheese', 'ice cream', 'breakfast', 'lunch', 'dinner',
     'sandwich', 'pastry', 'cookie', 'juice', 'alcohol', 'beer', 'wine', 'barbecue',
+    'tea', 'steak', 'chicken', 'roast', 'baking', 'cup', 'mug', 'produce', 'apple',
+    'banana', 'orange', 'strawberry', 'chocolate', 'sweet', 'candy', 'ramen', 'fish',
+    'brunch', 'cafe', 'bakery', 'diner', 'bbq', 'cooking',
   };
 
-  // Specific high-confidence Document ML labels
+  // High-confidence Document & Text ML labels
   static const Set<String> _docLabels = {
     'document', 'paper', 'receipt', 'invoice', 'bill', 'handwriting',
     'identity document', 'passport', 'driver\'s license', 'certificate',
-    'ticket', 'business card', 'flyer', 'page',
+    'ticket', 'business card', 'flyer', 'page', 'text', 'font', 'newspaper',
+    'book', 'envelope', 'publication', 'letter', 'sheet music', 'diagram',
+    'line art', 'monochrome', 'sign', 'whiteboard', 'blackboard', 'form',
+    'contract', 'statement', 'prescription', 'menu', 'pamphlet', 'brochure',
   };
 
-  // Specific high-confidence Meme ML labels
+  // High-confidence Meme & Graphics ML labels
   static const Set<String> _memeLabels = {
     'cartoon', 'comics', 'illustration', 'animated cartoon', 'meme', 'clip art',
-    'fictional character', 'caricature',
+    'fictional character', 'caricature', 'drawing', 'art', 'graphic design',
+    'anime', 'manga', 'animation', 'sticker', 'emoji',
   };
 
   // Regexes with strict word boundaries and required tokens
@@ -82,7 +100,7 @@ class CategorizationService {
   }
 
   /// Instant metadata-based categorization for clearly defined buckets.
-  /// Fix Bug 2: Screenshots check runs FIRST so app-name screenshots (e.g. Screenshot_Zomato) stay in Screenshots.
+  /// Screenshots check runs FIRST so app-name screenshots stay in Screenshots.
   String? quickCategorize(AssetEntity asset, {String? albumName}) {
     final title = (asset.title ?? '').toLowerCase();
     final path = (asset.relativePath ?? '').toLowerCase();
@@ -102,46 +120,66 @@ class CategorizationService {
 
     // 2. Authoritative Screenshots (Checked BEFORE app-names so Screenshot_Zomato stays in Screenshots)
     final bool isScreenshotFolder = album.contains('screenshot') || album.contains('screen shot') ||
-        path.contains('screenshots') || path.contains('screen_shot');
+        album.contains('screencapture') || path.contains('screenshots') || path.contains('screen_shot');
     final bool isScreenshotTitle = title.startsWith('screenshot') || title.startsWith('screen_shot') ||
-        title.contains('screenshot_') || title.contains('scrn_') || title.contains('s_shot');
+        title.contains('screenshot_') || title.contains('scrn_') || title.contains('s_shot') || title.startsWith('screen_');
 
     if (isScreenshotFolder || isScreenshotTitle) {
       return 'Screenshots';
     }
 
-    // Modern phone display aspect ratio (19:9 to 21.5:9) with PNG format or DCIM/Screenshots path
+    // Modern phone display aspect ratio (18.5:9 to 22:9) with typical screenshot naming or PNG format
     if (asset.width > 0 && asset.height > 0) {
       final longer = max(asset.width, asset.height);
       final shorter = min(asset.width, asset.height);
       final ratio = longer / shorter;
-      if (ratio >= 1.95 && ratio <= 2.35 && (title.endsWith('.png') || path.contains('screenshots'))) {
+      if (ratio >= 1.95 && ratio <= 2.35 && (title.endsWith('.png') || path.contains('screenshots') || album.contains('pictures'))) {
         return 'Screenshots';
       }
     }
 
-    // 3. Authoritative Social Media / WhatsApp bucket or title tags
+    // 3. Authoritative Social Media / Messaging bucket or title tags
     if (album.contains('whatsapp') || path.contains('whatsapp') ||
         album.contains('telegram') || path.contains('telegram') ||
         album.contains('snapchat') || path.contains('snapchat') ||
-        album.contains('instagram') || path.contains('instagram')) {
+        album.contains('instagram') || path.contains('instagram') ||
+        album.contains('facebook') || path.contains('facebook') ||
+        album.contains('messenger') || path.contains('messenger') ||
+        album.contains('signal') || path.contains('signal') ||
+        album.contains('twitter') || path.contains('twitter') ||
+        album.contains('threads') || path.contains('threads') ||
+        album.contains('discord') || path.contains('discord')) {
       return 'Social & WhatsApp';
     }
-    if (title.contains('-wa') || title.contains('_wa') || title.startsWith('wa') || title.contains('tg_')) {
+    if (title.contains('-wa') || title.contains('_wa') || title.startsWith('wa') ||
+        title.contains('tg_') || title.startsWith('fb_img') || title.startsWith('instagram_')) {
       return 'Social & WhatsApp';
     }
 
     // 4. Authoritative Downloads / Memes bucket
     if (album.contains('download') || path.contains('download') ||
         album.contains('reddit') || path.contains('reddit') ||
-        album.contains('9gag') || path.contains('9gag')) {
+        album.contains('9gag') || path.contains('9gag') ||
+        album.contains('pinterest') || path.contains('pinterest') ||
+        album.contains('meme') || path.contains('meme')) {
       return 'Memes & Downloads';
     }
 
     // 5. Authoritative Document scanners bucket
     if (album.contains('camscanner') || album.contains('adobe scan') || album.contains('documents') ||
-        path.contains('camscanner') || path.contains('adobescan')) {
+        path.contains('camscanner') || path.contains('adobescan') || album.contains('scanner') ||
+        album.contains('receipt') || album.contains('invoice')) {
       return 'Documents & IDs';
+    }
+
+    // 6. Food & Dining album hints
+    if (album.contains('food') || album.contains('recipe') || album.contains('restaurant') || album.contains('cooking')) {
+      return 'Food & Dining';
+    }
+
+    // 7. Explicit Portraits & Selfies album hints
+    if (album.contains('selfie') || album.contains('portrait') || album.contains('portraits') || album.contains('front camera')) {
+      return 'Personal & Portraits';
     }
 
     // Return null for ambiguous or Camera roll photos so they proceed to visual ML analysis
@@ -186,56 +224,55 @@ class CategorizationService {
       }
 
       if (file == null || !await file.exists()) {
-        return _fallbackCategory(asset, albumName: albumName);
+        return 'Others';
       }
 
       final inputImage = InputImage.fromFile(file);
 
-      // Signal 1: Real ML Kit Face Detection for Portraits
-      // If a face covers >= 8% of the frame, strongly vote for Personal & Portraits (+3.0)
+      // Signal 1: Real ML Kit Face Detection on the 360x360 thumbnail
+      // Any detected face with width >= 25 in the 360px thumbnail is a genuine person/portrait
       try {
         final faces = await _faceDetector.processImage(inputImage);
         if (faces.isNotEmpty) {
-          final imgWidth = (asset.width > 0 ? asset.width : 360).toDouble();
-          final imgHeight = (asset.height > 0 ? asset.height : 360).toDouble();
-          final totalArea = imgWidth * imgHeight;
-
-          bool significantFaceFound = false;
+          bool hasValidFace = false;
           for (final face in faces) {
-            final faceArea = face.boundingBox.width * face.boundingBox.height;
-            if (totalArea > 0 && (faceArea / totalArea) >= 0.08) {
-              significantFaceFound = true;
+            if (face.boundingBox.width >= 25 && face.boundingBox.height >= 25) {
+              hasValidFace = true;
               break;
             }
           }
-          if (significantFaceFound || faces.length >= 2) {
-            scores['Personal & Portraits'] = (scores['Personal & Portraits'] ?? 0.0) + 3.0;
+          if (hasValidFace || faces.length >= 2) {
+            scores['Personal & Portraits'] = (scores['Personal & Portraits'] ?? 0.0) + 3.5;
           }
         }
       } catch (_) {}
 
-      // Signal 2: On-device Image Labeling at >= 0.6 confidence threshold
+      // Signal 2: On-device Image Labeling at >= 0.40 confidence threshold
       final labels = await _imageLabeler.processImage(inputImage);
-      int foodLabelHits = 0;
-      double maxFoodConf = 0.0;
       bool hasTextHint = false;
 
       for (final l in labels) {
         final label = l.label.toLowerCase();
         final conf = l.confidence;
 
-        if (_foodLabels.contains(label)) {
-          foodLabelHits++;
-          if (conf > maxFoodConf) maxFoodConf = conf;
+        // Person / Portrait visual match
+        if (conf >= 0.45 && _personLabels.contains(label)) {
+          scores['Personal & Portraits'] = (scores['Personal & Portraits'] ?? 0.0) + 3.0;
         }
 
-        if (conf >= 0.60) {
-          if (_docLabels.contains(label)) {
-            scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.0;
-          }
-          if (_memeLabels.contains(label)) {
-            scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 2.0;
-          }
+        // Food & Dining visual match
+        if (conf >= 0.45 && _foodLabels.contains(label)) {
+          scores['Food & Dining'] = (scores['Food & Dining'] ?? 0.0) + 3.5;
+        }
+
+        // Document / Receipt visual match
+        if (conf >= 0.45 && _docLabels.contains(label)) {
+          scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.5;
+        }
+
+        // Meme / Cartoon visual match
+        if (conf >= 0.45 && _memeLabels.contains(label)) {
+          scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 3.0;
         }
 
         // Gate for OCR: label hints at text, font, paper, or document
@@ -245,13 +282,7 @@ class CategorizationService {
         }
       }
 
-      // Food scoring rule: require >= 2 food labels or 1 label at >= 0.70 confidence
-      if (foodLabelHits >= 2 || maxFoodConf >= 0.70) {
-        scores['Food & Dining'] = (scores['Food & Dining'] ?? 0.0) + 2.5;
-      }
-
       // Signal 3: High-Resolution (1024px) OCR for Documents & Receipts
-      // Gated so OCR only runs on candidate documents / text / screenshots, not every photo
       final bool needsOcr = hasTextHint || (scores['Documents & IDs'] ?? 0.0) > 0.0;
       if (needsOcr) {
         Uint8List? ocrBytes;
@@ -277,22 +308,22 @@ class CategorizationService {
           if (ocr.length >= 6) {
             // Bills & Finance: Currency amount pairing or transaction keywords
             if (_currencyRegex.hasMatch(ocr) || _transactionRegex.hasMatch(ocr) || _financeKeywordsRegex.hasMatch(ocr)) {
-              scores['Bills & Finance'] = (scores['Bills & Finance'] ?? 0.0) + 2.5;
+              scores['Bills & Finance'] = (scores['Bills & Finance'] ?? 0.0) + 4.0;
             }
 
             // Documents & IDs: Govt IDs (Aadhaar, PAN, DL) or document keywords
             if (_aadhaarRegex.hasMatch(ocr) || _panRegex.hasMatch(ocr) || _dlRegex.hasMatch(ocr) || _docKeywordsRegex.hasMatch(ocr)) {
-              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.5;
+              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 4.0;
             }
 
             // Memes & Downloads: Meme slang phrases
             if (ocr.length <= 160 && _memeSlangRegex.hasMatch(ocr)) {
-              scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 1.5;
+              scores['Memes & Downloads'] = (scores['Memes & Downloads'] ?? 0.0) + 2.5;
             }
 
             // Long printed text block indicator
-            if (ocr.length > 80 || recognizedText.blocks.length >= 4) {
-              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 1.5;
+            if (ocr.length > 50 || recognizedText.blocks.length >= 2) {
+              scores['Documents & IDs'] = (scores['Documents & IDs'] ?? 0.0) + 2.5;
             }
           }
         }
@@ -302,17 +333,32 @@ class CategorizationService {
       // Sort categories by accumulated score descending
       final sortedEntries = scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
       final top = sortedEntries[0];
-      final runnerUp = sortedEntries[1];
 
-      // Winner must achieve score >= 3.0 AND lead the runner-up by at least 1.5 points
-      if (top.value >= 3.0 && (top.value - runnerUp.value) >= 1.5) {
+      // Any category with score >= 1.5 wins (indicates solid visual or textual match)
+      if (top.value >= 1.5) {
         return top.key;
       }
 
+      // If photo was captured by user camera roll, classify to Personal & Portraits if any person/clothing signal exists
+      final album = (albumName ?? '').toLowerCase();
+      final path = (asset.relativePath ?? '').toLowerCase();
+      final bool isCameraRoll = album.contains('camera') || album.contains('dcim') ||
+          album.contains('100andro') || path.contains('dcim') || path.contains('camera');
+
+      if (isCameraRoll) {
+        if (top.value >= 0.8) {
+          return top.key;
+        }
+        if ((scores['Personal & Portraits'] ?? 0.0) > 0.0) {
+          return 'Personal & Portraits';
+        }
+      }
+
+      // Only unclassified miscellaneous photos (corrupt images, random textures) return 'Others'
       return 'Others';
     } catch (e) {
       debugPrint('[Categorization ML Error] $e');
-      return _fallbackCategory(asset, albumName: albumName);
+      return 'Others';
     } finally {
       if (tempFile != null) {
         try {
@@ -325,10 +371,5 @@ class CategorizationService {
         } catch (_) {}
       }
     }
-  }
-
-  String _fallbackCategory(AssetEntity asset, {String? albumName}) {
-    // Unresolved assets default to 'Others' without guessing from aspect ratio
-    return 'Others';
   }
 }

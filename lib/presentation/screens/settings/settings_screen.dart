@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -233,23 +232,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
 
-          const Gap(20),
-
-          // Section: Gallery Safety & Trash
-          _buildSectionHeader('Gallery Safety', mutedColor),
-          _buildSettingsTile(
-            context,
-            icon: Icons.delete_outline_rounded,
-            title: 'Device Trash & Recovery',
-            subtitle: 'View 30-day restorable items in phone gallery',
-            cardBg: cardBg,
-            textColor: textColor,
-            mutedColor: mutedColor,
-            onTap: () {
-              HapticFeedback.selectionClick();
-              context.push('/trash');
-            },
-          ),
 
           const Gap(20),
 

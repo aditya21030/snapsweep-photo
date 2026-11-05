@@ -9,6 +9,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_utils.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 
+enum SmartCleanFilter { all, duplicates, blurry, videos, bursts }
+
 class SmartCleanPreviewScreen extends StatefulWidget {
   const SmartCleanPreviewScreen({super.key});
 
@@ -19,6 +21,7 @@ class SmartCleanPreviewScreen extends StatefulWidget {
 class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
+  SmartCleanFilter _activeFilter = SmartCleanFilter.all;
 
   @override
   void initState() {
@@ -27,17 +30,83 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
       if (!mounted) return;
       final provider = context.read<ScanProvider>();
       setState(() {
-        for (var asset in provider.smartCleanCandidates) {
+        for (final asset in provider.smartCleanCandidates) {
           _selectedIds.add(asset.id);
         }
       });
     });
   }
 
+  String _getItemReason(AssetEntity asset, ScanProvider provider) {
+    if (asset.type == AssetType.video) return 'Video';
+    if (provider.blurryPhotos.any((b) => b.id == asset.id)) return 'Blurry';
+    for (final group in provider.duplicateGroups) {
+      if (group.any((d) => d.id == asset.id)) return 'Duplicate';
+    }
+    for (final group in provider.similarGroups) {
+      if (group.any((s) => s.id == asset.id)) return 'Burst';
+    }
+    return 'Reclaimable';
+  }
+
+  Color _getReasonBadgeColor(String reason) {
+    switch (reason) {
+      case 'Duplicate':
+        return AppColors.violet;
+      case 'Blurry':
+        return AppColors.gold;
+      case 'Video':
+        return const Color(0xFF2563EB);
+      case 'Burst':
+        return const Color(0xFFEA580C);
+      default:
+        return Colors.black.withValues(alpha: 0.7);
+    }
+  }
+
+  List<AssetEntity> _getFilteredCandidates(ScanProvider provider) {
+    final all = provider.smartCleanCandidates;
+    switch (_activeFilter) {
+      case SmartCleanFilter.all:
+        return all;
+      case SmartCleanFilter.duplicates:
+        final Set<String> dupIds = {};
+        for (final g in provider.duplicateGroups) {
+          if (g.length > 1) {
+            for (int i = 1; i < g.length; i++) {
+              dupIds.add(g[i].id);
+            }
+          }
+        }
+        return all.where((a) => dupIds.contains(a.id)).toList();
+      case SmartCleanFilter.blurry:
+        final Set<String> blurIds = provider.blurryPhotos.map((b) => b.id).toSet();
+        return all.where((a) => blurIds.contains(a.id)).toList();
+      case SmartCleanFilter.videos:
+        return all.where((a) => a.type == AssetType.video).toList();
+      case SmartCleanFilter.bursts:
+        final Set<String> burstIds = {};
+        for (final g in provider.similarGroups) {
+          if (g.length > 1) {
+            for (int i = 1; i < g.length; i++) {
+              burstIds.add(g[i].id);
+            }
+          }
+        }
+        return all.where((a) => burstIds.contains(a.id)).toList();
+    }
+  }
+
   Future<void> _cleanSelected() async {
     if (_isProcessing || _selectedIds.isEmpty) return;
     _isProcessing = true;
     try {
+      final provider = context.read<ScanProvider>();
+      int selectedSize = 0;
+      for (var id in _selectedIds) {
+        selectedSize += provider.assetSizes[id] ?? 0;
+      }
+
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -49,14 +118,14 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                   color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_rounded, color: AppColors.error, size: 24),
+                child: const Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 24),
               ),
               const Gap(12),
-              const Expanded(child: Text('Move Copies to Trash?')),
+              const Expanded(child: Text('Delete Selected Items?')),
             ],
           ),
           content: Text(
-            '${_selectedIds.length} exact copy photo(s) will be moved to your device\'s Trash / Recently Deleted folder.\n\nThe original photo will be safely kept. You can restore deleted copies within 30 days.',
+            '${_selectedIds.length} item(s) will be permanently deleted from your phone storage to free up ${AppUtils.formatBytes(selectedSize)}.\n\nThis action cannot be undone.',
             style: const TextStyle(fontSize: 14, height: 1.4),
           ),
           actions: [
@@ -67,8 +136,8 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18),
-              label: const Text('Move to Trash'),
+              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+              label: const Text('Delete Permanently'),
             ),
           ],
         ),
@@ -78,9 +147,9 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
         HapticFeedback.mediumImpact();
         final count = await context.read<ScanProvider>().smartClean(specificIds: _selectedIds.toList());
         if (mounted && count > 0) {
-          Navigator.pop(context); // Return to Cleaner Tab
+          Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Moved $count duplicate copies to Trash!')),
+            SnackBar(content: Text('Successfully deleted $count items!')),
           );
         }
       }
@@ -95,7 +164,7 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
       context,
       asset: asset,
       isSelected: isSelected,
-      subtitle: 'Exact Duplicate Copy',
+      subtitle: asset.type == AssetType.video ? 'Large Video' : 'Reclaimable Item',
       onSelectionChanged: (val) {
         setState(() {
           if (val) {
@@ -118,24 +187,47 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
     }
   }
 
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ScanProvider>(
       builder: (context, provider, child) {
-        final candidates = provider.smartCleanCandidates;
+        final allCandidates = provider.smartCleanCandidates;
+        final displayedCandidates = _getFilteredCandidates(provider);
+
+        // Keep _selectedIds in sync with candidates if newly arrived
+        if (_selectedIds.isEmpty && allCandidates.isNotEmpty) {
+          for (final a in allCandidates) {
+            _selectedIds.add(a.id);
+          }
+        }
+
         int selectedSize = 0;
         for (var id in _selectedIds) {
           selectedSize += provider.assetSizes[id] ?? 0;
         }
 
+        final isFilteredAllSelected = displayedCandidates.isNotEmpty &&
+            displayedCandidates.every((a) => _selectedIds.contains(a.id));
+
         return Scaffold(
           appBar: AppBar(
             title: Column(
               children: [
-                const Text('Exact Copies Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                const Text(
+                  'Reclaimable Items Review',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                ),
                 Text(
-                  '${_selectedIds.length} of ${candidates.length} selected',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  '${_selectedIds.length} of ${allCandidates.length} selected (${AppUtils.formatBytes(selectedSize)})',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ],
             ),
@@ -144,151 +236,262 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   setState(() {
-                    if (_selectedIds.length == candidates.length) {
-                      _selectedIds.clear();
+                    if (isFilteredAllSelected) {
+                      for (final a in displayedCandidates) {
+                        _selectedIds.remove(a.id);
+                      }
                     } else {
-                      for (var a in candidates) {
+                      for (final a in displayedCandidates) {
                         _selectedIds.add(a.id);
                       }
                     }
                   });
                 },
-                child: Text(
-                  _selectedIds.length == candidates.length ? 'Deselect All' : 'Select All',
-                ),
+                child: Text(isFilteredAllSelected ? 'Deselect Tab' : 'Select Tab'),
               ),
             ],
           ),
-          body: candidates.isEmpty
+          body: allCandidates.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_rounded, size: 64, color: Colors.green.withValues(alpha: 0.6)),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 64,
+                        color: Colors.green.withValues(alpha: 0.6),
+                      ),
                       const Gap(16),
-                      const Text('No duplicate copies found!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const Text(
+                        'No reclaimable items found!',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
                       const Gap(6),
-                      const Text('Your gallery has no redundant exact files.', style: TextStyle(color: Colors.grey)),
+                      const Text(
+                        'Your gallery is fully optimized.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ],
                   ),
                 )
               : Column(
                   children: [
+                    // Subcategory Filter Chips Row
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          _buildFilterChip('All (${allCandidates.length})', SmartCleanFilter.all),
+                          const Gap(8),
+                          _buildFilterChip('Duplicates', SmartCleanFilter.duplicates),
+                          const Gap(8),
+                          _buildFilterChip('Blurry', SmartCleanFilter.blurry),
+                          const Gap(8),
+                          _buildFilterChip('Videos', SmartCleanFilter.videos),
+                          const Gap(8),
+                          _buildFilterChip('Bursts', SmartCleanFilter.bursts),
+                        ],
+                      ),
+                    ),
+
+                    // Info banner
                     Container(
-                      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.shield_outlined, size: 20, color: Colors.green),
-                          Gap(10),
+                          const Icon(Icons.cleaning_services_rounded, size: 18, color: AppColors.violet),
+                          const Gap(10),
                           Expanded(
                             child: Text(
-                              'These are 100% byte-for-byte exact copies. Only extra copies are marked; originals will stay safe.',
-                              style: TextStyle(fontSize: 12),
+                              'Showing ${displayedCandidates.length} items. Tap any tile to preview full screen. All deletions are permanent.',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ),
                         ],
                       ),
                     ),
+
+                    // Grid
                     Expanded(
-                      child: GridView.builder(
-                        cacheExtent: 600,
-                        padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.paddingOf(context).bottom + 100),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                          childAspectRatio: 0.9,
-                        ),
-                        itemCount: candidates.length,
-                        itemBuilder: (context, index) {
-                          final asset = candidates[index];
-                          final isSelected = _selectedIds.contains(asset.id);
-
-                          return GestureDetector(
-                            onTap: () => _openInspector(asset),
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: AssetEntityImage(
-                                      asset,
-                                      isOriginal: false,
-                                      thumbnailSize: const ThumbnailSize.square(250),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
+                      child: displayedCandidates.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No items in this section.',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 14,
                                 ),
-                                if (isSelected)
-                                  Positioned.fill(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: AppColors.error, width: 3),
-                                        borderRadius: BorderRadius.circular(14),
-                                        color: AppColors.error.withValues(alpha: 0.3),
-                                      ),
-                                    ),
-                                  ),
+                              ),
+                            )
+                          : GridView.builder(
+                              cacheExtent: 800,
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                4,
+                                16,
+                                MediaQuery.paddingOf(context).bottom + 100,
+                              ),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.88,
+                              ),
+                              itemCount: displayedCandidates.length,
+                              itemBuilder: (context, index) {
+                                final asset = displayedCandidates[index];
+                                final isSelected = _selectedIds.contains(asset.id);
+                                final isVideo = asset.type == AssetType.video;
+                                final reason = _getItemReason(asset, provider);
+                                final badgeColor = _getReasonBadgeColor(reason);
 
-                                // Corner Checkbox
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedIds.remove(asset.id);
-                                        } else {
-                                          _selectedIds.add(asset.id);
-                                        }
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? AppColors.error : Colors.black.withValues(alpha: 0.5),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 1.5),
+                                return GestureDetector(
+                                  onTap: () => _openInspector(asset),
+                                  child: Stack(
+                                    children: [
+                                      // Image Thumbnail with reliable fallback
+                                      Positioned.fill(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: AssetEntityImage(
+                                            asset,
+                                            isOriginal: false,
+                                            thumbnailSize: const ThumbnailSize.square(300),
+                                            thumbnailFormat: ThumbnailFormat.jpeg,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (context, child, progress) {
+                                              if (progress == null) return child;
+                                              return Container(
+                                                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                child: const Center(
+                                                  child: SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                              child: Center(
+                                                child: Icon(
+                                                  isVideo ? Icons.videocam_rounded : Icons.photo_rounded,
+                                                  color: Colors.grey,
+                                                  size: 32,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                      child: Icon(
-                                        isSelected ? Icons.check_rounded : Icons.circle,
-                                        color: isSelected ? Colors.white : Colors.transparent,
-                                        size: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
 
-                                // Size label
-                                if (provider.assetSizes.containsKey(asset.id))
-                                  Positioned(
-                                    bottom: 6,
-                                    right: 6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.65),
-                                        borderRadius: BorderRadius.circular(6),
+                                      // Selected Overlay
+                                      if (isSelected)
+                                        Positioned.fill(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(color: AppColors.error, width: 2.5),
+                                              borderRadius: BorderRadius.circular(14),
+                                              color: AppColors.error.withValues(alpha: 0.28),
+                                            ),
+                                          ),
+                                        ),
+
+                                      // Reason / Category Badge Top-Left
+                                      Positioned(
+                                        top: 6,
+                                        left: 6,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: badgeColor.withValues(alpha: 0.88),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (isVideo) ...[
+                                                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 11),
+                                                const Gap(2),
+                                              ],
+                                              Text(
+                                                isVideo ? _formatDuration(asset.duration) : reason,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                      child: Text(
-                                        provider.getFormattedAssetSize(asset.id),
-                                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+
+                                      // Selection Checkbox Top-Right
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () {
+                                            HapticFeedback.selectionClick();
+                                            setState(() {
+                                              if (isSelected) {
+                                                _selectedIds.remove(asset.id);
+                                              } else {
+                                                _selectedIds.add(asset.id);
+                                              }
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: BoxDecoration(
+                                              color: isSelected ? AppColors.error : Colors.black.withValues(alpha: 0.5),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white, width: 1.5),
+                                            ),
+                                            child: Icon(
+                                              isSelected ? Icons.check_rounded : Icons.circle,
+                                              color: isSelected ? Colors.white : Colors.transparent,
+                                              size: 13,
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+
+                                      // File Size Badge Bottom-Right
+                                      if (provider.assetSizes.containsKey(asset.id))
+                                        Positioned(
+                                          bottom: 6,
+                                          right: 6,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.75),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              provider.getFormattedAssetSize(asset.id),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                              ],
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ),
@@ -312,13 +515,13 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                icon: const Icon(Icons.delete_sweep_rounded),
+                icon: const Icon(Icons.delete_forever_rounded),
                 label: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     _selectedIds.isEmpty
-                        ? 'Select Copies to Clean'
-                        : 'Move ${_selectedIds.length} Copies to Trash (${AppUtils.formatBytes(selectedSize)})',
+                        ? 'Select Items to Delete'
+                        : 'Delete Selected (${_selectedIds.length} items | ${AppUtils.formatBytes(selectedSize)})',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                 ),
@@ -326,6 +529,27 @@ class _SmartCleanPreviewScreenState extends State<SmartCleanPreviewScreen> {
             ),
           ),
         );
+      },
+    );
+  }
+
+  Widget _buildFilterChip(String label, SmartCleanFilter filter) {
+    final isSelected = _activeFilter == filter;
+    return FilterChip(
+      selected: isSelected,
+      label: Text(label),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        color: isSelected ? Colors.white : null,
+      ),
+      selectedColor: AppColors.violet,
+      showCheckmark: false,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (_) {
+        HapticFeedback.selectionClick();
+        setState(() => _activeFilter = filter);
       },
     );
   }

@@ -430,7 +430,7 @@ class _FullscreenPhotoViewerState extends State<FullscreenPhotoViewer> with Widg
                                   : Icons.check_circle_outline_rounded,
                             ),
                             label: Text(
-                              _selected ? 'Selected for Trash' : 'Select to Clean',
+                              _selected ? 'Selected to Delete' : 'Select to Clean',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),

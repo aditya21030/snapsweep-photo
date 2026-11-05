@@ -1,13 +1,12 @@
 package com.yousful.snapsweep
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.util.Log
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
 class SnapSweepWidgetProvider : HomeWidgetProvider() {
@@ -34,40 +33,24 @@ class SnapSweepWidgetProvider : HomeWidgetProvider() {
                 views.setTextViewText(R.id.widget_count, countText)
 
                 // Intent to open Quick Clean
-                val cleanIntent = Intent(context, MainActivity::class.java).apply {
-                    action = Intent.ACTION_VIEW
-                    data = Uri.parse("snapsweep://clean")
-                    setPackage(context.packageName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                val cleanPendingIntent = PendingIntent.getActivity(
+                val cleanPendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
-                    101,
-                    cleanIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    MainActivity::class.java,
+                    Uri.parse("snapsweep://clean")
                 )
                 views.setOnClickPendingIntent(R.id.widget_btn_clean, cleanPendingIntent)
+                views.setOnClickPendingIntent(R.id.widget_container, cleanPendingIntent)
 
                 // Intent to open Swipe Clean
-                val swipeIntent = Intent(context, MainActivity::class.java).apply {
-                    action = Intent.ACTION_VIEW
-                    data = Uri.parse("snapsweep://swipe")
-                    setPackage(context.packageName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                }
-                val swipePendingIntent = PendingIntent.getActivity(
+                val swipePendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
-                    102,
-                    swipeIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    MainActivity::class.java,
+                    Uri.parse("snapsweep://swipe")
                 )
                 views.setOnClickPendingIntent(R.id.widget_btn_swipe, swipePendingIntent)
 
-                // Overall widget container click
-                views.setOnClickPendingIntent(R.id.widget_container, cleanPendingIntent)
-
                 appWidgetManager.updateAppWidget(widgetId, views)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Failed to update widget ID: $widgetId", e)
             }
         }

@@ -1,44 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_review_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background_violet"
-    android:orientation="vertical"
     android:padding="16dp">
 
-    <TextView
-        android:id="@+id/widget_review_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="TO REVIEW"
-        android:textColor="#DBCAFF"
-        android:textSize="11sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_review_size"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="12.4 GB"
-        android:textColor="#FFFFFF"
-        android:textSize="24sp"
-        android:textStyle="bold" />
-
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_review_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TO REVIEW"
+            android:textColor="#DBCAFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_review_size"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="12.4 GB"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_review_btn_clean"
         android:layout_width="match_parent"
         android:layout_height="38dp"
+        android:layout_alignParentBottom="true"
         android:background="@drawable/widget_button_clean"
         android:gravity="center"
         android:text="Quick clean"
         android:textColor="#12052D"
         android:textSize="13sp"
         android:textStyle="bold" />
-</LinearLayout>
+</RelativeLayout>

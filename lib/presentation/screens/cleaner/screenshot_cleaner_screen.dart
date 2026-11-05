@@ -126,14 +126,14 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
               const Gap(14),
               Expanded(
                 child: Text(
-                  'Move to Trash?',
+                  'Delete Screenshots?',
                   style: AppTypography.heading20(color: textColor),
                 ),
               ),
             ],
           ),
           content: Text(
-            '${_selectedIds.length} expired screenshot(s) will be sent to Trash.\n\nYou can restore them within 30 days if needed.',
+            '${_selectedIds.length} expired screenshot(s) will be permanently deleted.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -150,7 +150,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
               ),
               onPressed: () => Navigator.pop(ctx, true),
               icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
-              label: Text('Move to Trash', style: AppTypography.button15(color: Colors.white)),
+              label: Text('Delete Permanently', style: AppTypography.button15(color: Colors.white)),
             ),
           ],
         ),
@@ -176,7 +176,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               content: Text(
-                'Moved $count expired screenshots to Trash',
+                'Successfully deleted $count expired screenshots',
                 style: AppTypography.body15(color: Colors.white),
               ),
             ),
@@ -694,7 +694,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                     onPressed: _isProcessing ? null : _cleanSelected,
                     icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
                     label: Text(
-                      'Move to Trash',
+                      'Delete Selected',
                       style: AppTypography.button15(color: AppColors.ink),
                     ),
                   ),
