@@ -23,7 +23,7 @@ class CompletionAdPolicy {
     final now = _clock();
     // Allow an ad after cleanups with a 45-second cooldown to keep UX smooth
     if (_lastShown != null &&
-        now.difference(_lastShown!) < const Duration(seconds: 45)) {
+        now.difference(_lastShown!) < const Duration(seconds: 5)) {
       return false;
     }
     _lastShown = now;
@@ -238,7 +238,7 @@ class AdService {
         loadInterstitialAd();
       }
       // Wait up to 1.5s if currently in flight
-      for (int i = 0; i < 25; i++) {
+      for (int i = 0; i < 30; i++) {
         if (_interstitial != null) break;
         if (!_loading) break;
         await Future.delayed(const Duration(milliseconds: 100));

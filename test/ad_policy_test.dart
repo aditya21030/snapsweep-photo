@@ -16,17 +16,17 @@ void main() {
     var now = DateTime.utc(2026, 11, 6, 12);
     final policy = CompletionAdPolicy(clock: () => now);
     expect(policy.consume(premium: false, ready: true, allowed: true), true);
-    // After 50 seconds (greater than 45s cooldown), next ad is permitted
-    now = now.add(const Duration(seconds: 50));
+    // After 6 seconds (greater than 5s cooldown), next ad is permitted
+    now = now.add(const Duration(seconds: 6));
     expect(policy.consume(premium: false, ready: true, allowed: true), true);
   });
 
   test('cooldown restored after restart prevents another immediate ad', () {
     var now = DateTime.utc(2026, 11, 6, 12);
     final policy = CompletionAdPolicy(clock: () => now);
-    policy.restoreCooldown(now.subtract(const Duration(seconds: 20)));
+    policy.restoreCooldown(now.subtract(const Duration(seconds: 2)));
     expect(policy.consume(premium: false, ready: true, allowed: true), false);
-    now = now.add(const Duration(seconds: 30));
+    now = now.add(const Duration(seconds: 4));
     expect(policy.consume(premium: false, ready: true, allowed: true), true);
   });
 }
