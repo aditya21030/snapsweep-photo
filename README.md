@@ -4,18 +4,18 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Android%20Only-3DDC84?logo=android)](https://www.android.com)
-[![Privacy](https://img.shields.io/badge/Privacy-100%25%20On--Device-success?logo=shield)](https://github.com/aditya21030/snapsweep-photo)
+[![Privacy](https://img.shields.io/badge/Media%20Analysis-On--Device-success?logo=shield)](https://github.com/aditya21030/snapsweep-photo)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**SnapSweep** is an ultra-fast, privacy-first gallery cleaner engineered exclusively for Android. It eliminates duplicate clutter, compresses heavy 4K videos using native hardware encoding, sweeps burst shots to keep only the best pose, purges temporary expired screenshots, and clears redundant WhatsApp sent media. All processing occurs 100% offline on-device without telemetry or cloud uploads.
+**SnapSweep** is a gallery cleaner for Android. It finds duplicate clutter, compresses videos, groups burst shots, and helps review screenshots and messaging media. Photo and video analysis runs on-device without uploading gallery content. Ads and Google Play Billing use network services.
 
 ---
 
 ## ✨ Complete Feature Overview
 
-### 1. ⚡ 3-Tier Scanning Pipeline (< 1.5s Execution)
-- **Tier 1 - Zero-I/O Metadata Discovery**: Groups thousands of gallery items into smart categories in under 150 ms using pure MediaStore cursor metadata.
-- **Tier 2 - Dimensional Pruning**: Assets with unique pixel dimensions bypass disk read operations entirely, eliminating ~95% of disk overhead.
+### 1. ⚡ Staged Scanning Pipeline
+- **Tier 1 - Metadata Discovery**: Reads MediaStore metadata to organize gallery items into categories.
+- **Tier 2 - Dimensional Pruning**: Assets with unique pixel dimensions bypass duplicate file reads.
 - **Tier 3 - Pure-Isolate Cryptographic Verification**: Calculates 64-bit dHash and targeted MD5 hashes strictly on files with identical dimensions and byte length inside a dedicated background worker (`ScannerIsolate`).
 
 ---
@@ -33,12 +33,12 @@
 ### 2. 👯 Exact Duplicates & Safe Smart Clean
 - **100% Bit-for-Bit Matching**: Groups identical copies saved across different folders (e.g. WhatsApp, Camera, Downloads).
 - **Smart Authority Selection**: Automatically preserves the original high-resolution camera capture (`DCIM/Camera`) while pre-selecting redundant downloaded copies for deletion.
-- **Native 30-Day Trash Recovery**: Deletion uses Android Scoped Storage Trash (`IS_TRASHED = 1`), allowing users to easily restore photos from the system gallery within 30 days.
+- **Recoverable removal on Android 11+**: Media is moved to Android's system Trash and can be restored while the system retains it. On Android 10 and older, removal is permanent and the confirmation dialog says so.
 
 ---
 
 ### 3. 🃏 Swipe to Clean (Interactive Card Deck)
-- **Tinder-Style Gestural Deck**: Smooth 120 FPS card physics with drag resistance, rotation tilt, and velocity-based fling animations.
+- **Gesture Deck**: Swipe cards with drag resistance, rotation, and fling animations.
 - **Intuitive Actions**:
   - **Swipe Left**: Queue for Trash.
   - **Swipe Right**: Keep photo.
@@ -52,8 +52,8 @@
 ### 4. 👑 Burst & Rapid Shot "Best Photo Selector"
 - **Temporal Clustering**: Groups sequences of photos captured within 2 to 4 seconds of each other with matching aspect ratios (selfies, action shots, group poses).
 - **Automated Quality Scoring**: Analyzes sharpness, resolution, and capture authority to automatically crown the sharpest photo with a golden **BEST SHOT** badge.
-- **Keep Best, Trash Rest**: Automatically pre-selects inferior and closed-eye shots for removal while locking the crowned winner.
-- **1-Tap Purge**: Batch moves redundant burst shots to Trash with a single tap.
+- **Keep Best, Review Rest**: Ranks burst shots and lets users review the remaining photos for removal.
+- **Batch Removal**: Moves selected burst shots to Trash on Android 11+; older Android versions permanently delete them after confirmation.
 
 ---
 
@@ -70,13 +70,13 @@
 ---
 
 ### 6. 🗜️ Video Compressor ("Compress & Save")
-- **Native Android Jetpack Media3 Transformer**: Hardware-accelerated GPU/NPU transcoding powered by `vidsqueeze` (H.264 / HEVC) with zero device overheating.
+- **Native Android Jetpack Media3 Transformer**: Video transcoding through `vidsqueeze` with H.264 and HEVC support.
 - **3 Quality Presets**:
   - **Balanced (Recommended)**: Capped at 1080p Full HD with optimized bitrate for ~65% storage savings.
   - **Maximum Space Saver**: Capped at 720p HD for up to ~80% reduction, perfect for sharing.
   - **Ultra HD Preserver**: Retains 1440p / 4K detail while optimizing heavy bitrates.
 - **Live Side-by-Side Video Preview**: Integrated in-app video player to preview and compare the compressed result before finalizing.
-- **Safe Replacement Workflow**: Automatically saves the compressed video to the device gallery and safely moves the original file to Trash only when storage savings are verified.
+- **Safe Replacement Workflow**: Saves a smaller compressed copy before removing the original, if the user enables that option. Android 11+ moves the original to Trash; older versions permanently delete it.
 - **App Cache Leakage Cleanup**: Automatically purges temporary transcoding files from internal app storage immediately after saving.
 
 ---
@@ -150,10 +150,10 @@
 
 ## 🔒 Privacy & Safety Guarantee
 
-- **100% Offline Processing**: All hashing, ML classification, and thumbnail processing happen strictly on your device.
-- **No Cloud Uploads**: Photos, videos, and filenames are never transmitted to any external server.
-- **No Account Required**: Use immediately with zero sign-ups or telemetry tracking.
-- **Safe Trash Deletion**: All deletions invoke Android's native `deleteWithIds` Scoped Storage Trash API, guaranteeing items can be recovered within 30 days.
+- **On-device media processing**: Hashing, ML classification, and thumbnail processing happen on your device.
+- **No gallery uploads for analysis**: The scanner and compressor process gallery files on-device.
+- **No SnapSweep account required**: Use the cleaner without creating an app account.
+- **Removal behavior**: Android 11+ uses MediaStore Trash. Android 10 and older use permanent deletion because system Trash is unavailable; the app shows the applicable action before removal.
 
 ---
 
@@ -222,20 +222,16 @@ flutter run
 
 ### Production Release Build & Signing
 
-To compile release APKs:
+Set up an ignored `android/key.properties` file with `keyAlias`, `keyPassword`, `storeFile`, and `storePassword` before making a signed release build. Debug builds do not require release signing properties. Then build and verify the APK:
 
 ```bash
 # Universal Release APK
 flutter build apk --release
 
-# Architecture-Optimized Release APKs (Split-per-ABI)
+# Architecture-optimized release APKs
 flutter build apk --split-per-abi --release
-```
 
-To sign with Android APK Signature Schemes v2 and v3:
-
-```bash
-apksigner sign --ks android/app/upload-keystore.jks --ks-pass pass:android --key-pass pass:android --ks-key-alias upload build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+# Verify the Gradle-signed APK
 apksigner verify --verbose build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 ```
 
@@ -244,3 +240,43 @@ apksigner verify --verbose build/app/outputs/flutter-apk/app-arm64-v8a-release.a
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+## Advertising configuration
+
+Android's AdMob application ID is configured in `android/app/src/main/AndroidManifest.xml`.
+The confirmed production interstitial unit is `ca-app-pub-9787505657189806/2924077899` and is the default for release builds. The native placement remains disabled until its separate unit is supplied. To override units:
+
+```powershell
+.\scripts\build-release.ps1 -InterstitialAdUnitId YOUR_INTERSTITIAL_UNIT_ID -NativeAdUnitId YOUR_NATIVE_UNIT_ID
+```
+
+Debug/profile builds use Google's official test units. Release placements without a configured unit ID stay disabled. Native and interstitial placements require different unit IDs.
+
+A native template appears below dashboard tools when loaded and permitted. Cleanup and compression completion flows use a shared result dialog. Only Continue can show a preloaded interstitial. One shared policy permits at most one completion interstitial per process session and persists a three-minute cooldown across restarts. If no ad is ready, continuation is immediate. Ad-free purchases bypass ads. UMP refreshes consent, ad requests wait for `canRequestAds`, and required privacy options are available in Settings. Publish the appropriate consent messages in AdMob Privacy & messaging before distributing advertising builds.
+
+The in-app policies are also available in `docs/privacy-policy.md` and `docs/terms-and-conditions.md` for publication. Hosting these documents and updating the Google Play policy URL/Data safety declarations are separate publishing steps.
+
+The release helper keeps temporary build files on the project drive, uses the configured release signing, and restores the calling shell environment afterwards. Gradle uses a single worker and in-process Kotlin compilation for memory-constrained machines.
+
+## Remove Ads purchase and required updates
+
+The single non-consumable product is `snapsweep_remove_ads`, with the `buy-once` Buy purchase option in Play Console. The intended India price is INR 149 once. The purchase page displays the localized price returned by Google Play, never a hard-coded charge. Activate the product/purchase option and enable the buyer's country in Play Console. Pending, cancelled and failed payments do not unlock Remove Ads. Owned purchases are restored through Google Play and acknowledged after a successful ownership query. Refunded/revoked ownership is reconciled on resume. The implementation uses the on-device Play Billing ownership query; it does not claim server-side verification. A secure verification backend remains future work.
+
+The Remove Ads page is available from Settings. It includes checkout, purchase status, restore, terms and privacy links. Only advertising is sold; no other cleaner feature is advertised as premium.
+
+Android release builds check Google Play updates in the background at startup, on resume and every five minutes while foregrounded. Only an available version strictly newer than the installed version blocks access for free and ad-free users. The update page has Update now, Open Google Play and Check again, with no skip action. Immediate updates use Play's native flow. Cancel/failure does not unlock the app. A confirmed newer version is remembered until that version or newer is installed, or Play definitively reports no update. Old markers are cleared immediately after reading the installed version, before checking Play. Failed/unknown checks allow access unless a previously confirmed version is still newer than the installed version. Debug/profile builds bypass the gate for development. No Play Console or backend minimum-version service is configured.
+
+**Distribution:** A directly sideloaded APK opens normally when Play update checks are unavailable. Current/newer APKs do not prompt based on stale or same-version Play responses. Play ownership/update support is needed for the actual in-app installation flow. Updates must actually be available to the user's Play account, country, device and release track. This change cannot enforce updates in old app versions that do not contain the gate.
+
+Build the Play Console bundle with `./scripts/build-release.ps1 -AppBundle`. Use `./scripts/build-release.ps1` for a signed APK. Both include the confirmed production interstitial unit by default; the native unit remains unconfigured.
+
+Before production, upload the bundle to Internal testing and add the buyer account to Settings > License testing. Install using the Play opt-in link. Test successful purchase, cancellation, pending payment, restore after reinstall, refund/revocation and no duplicate checkout. For updates, install a gate-enabled Play build, then publish a higher version code to the same eligible test track (or use Google's internal app sharing update test workflow). Check cancellation, offline retry, app restart and final install. Local automated tests mock store/update channels and do not replace these device tests.
+
+## Durable gallery scan checkpoints
+
+Completed results now contain the gallery catalog and its matching analysis/category cache in one atomic snapshot. Reopening a completed scan restores both without enumerating or classifying the gallery again; use Refresh to discover gallery changes. Existing legacy snapshots remain readable without resetting the analysis version.
+
+Before a new scan processes images, it saves a resumable catalog. Each batch appends a small, flushed journal record containing its completed hashes, category decisions and sizes. An interrupted scan restores the snapshot plus journal and resumes unfinished work. Fresh MediaStore metadata and sizes invalidate edited files before cached analysis is reused. Restarting may repeat an in-flight batch that was not durably saved, and final group assembly can run again. A torn final journal record is ignored; a completed snapshot supersedes and compacts the journal. Background category refinement uses the same checkpoints.
+
+The Remove Ads page follows the supplied light/dark references, including a scalable gallery/ad illustration, a single benefits card, one-time store pricing, restore and legal links. The light action is violet and the dark action is gold. Prices always come from Google Play. Rendered QA previews are in `build/ui-review`.

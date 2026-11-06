@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
 
@@ -22,20 +24,21 @@ enum ScreenshotAgeFilter {
 
 extension ScreenshotAgeFilterLabel on ScreenshotAgeFilter {
   String get label => switch (this) {
-        ScreenshotAgeFilter.olderThan7Days => 'Over 7 days',
-        ScreenshotAgeFilter.olderThan30Days => 'Over 30 days',
-        ScreenshotAgeFilter.olderThan60Days => 'Over 60 days',
-        ScreenshotAgeFilter.olderThan90Days => 'Over 90 days',
-        ScreenshotAgeFilter.olderThan1Year => 'Over 1 year',
-        ScreenshotAgeFilter.allScreenshots => 'All screenshots',
-      };
+    ScreenshotAgeFilter.olderThan7Days => 'Over 7 days',
+    ScreenshotAgeFilter.olderThan30Days => 'Over 30 days',
+    ScreenshotAgeFilter.olderThan60Days => 'Over 60 days',
+    ScreenshotAgeFilter.olderThan90Days => 'Over 90 days',
+    ScreenshotAgeFilter.olderThan1Year => 'Over 1 year',
+    ScreenshotAgeFilter.allScreenshots => 'All screenshots',
+  };
 }
 
 class ScreenshotCleanerScreen extends StatefulWidget {
   const ScreenshotCleanerScreen({super.key});
 
   @override
-  State<ScreenshotCleanerScreen> createState() => _ScreenshotCleanerScreenState();
+  State<ScreenshotCleanerScreen> createState() =>
+      _ScreenshotCleanerScreenState();
 }
 
 class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
@@ -49,17 +52,28 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final screenshots = context.read<ScanProvider>().categories['Screenshots'] ?? [];
+      final screenshots = context.read<ScanProvider>().screenshotAssets;
       final now = DateTime.now();
-      final hasOld = screenshots.any((a) => now.difference(a.createDateTime).inDays >= 30);
+      final hasOld = screenshots.any(
+        (a) => now.difference(a.createDateTime).inDays >= 30,
+      );
       if (!hasOld && screenshots.isNotEmpty) {
-        final hasWeekOld = screenshots.any((a) => now.difference(a.createDateTime).inDays >= 7);
-        setState(() => _activeAgeFilter = hasWeekOld ? ScreenshotAgeFilter.olderThan7Days : ScreenshotAgeFilter.allScreenshots);
+        final hasWeekOld = screenshots.any(
+          (a) => now.difference(a.createDateTime).inDays >= 7,
+        );
+        setState(
+          () => _activeAgeFilter = hasWeekOld
+              ? ScreenshotAgeFilter.olderThan7Days
+              : ScreenshotAgeFilter.allScreenshots,
+        );
       }
     });
   }
 
-  List<AssetEntity> _filterScreenshots(List<AssetEntity> screenshots, Map<String, int> sizes) {
+  List<AssetEntity> _filterScreenshots(
+    List<AssetEntity> screenshots,
+    Map<String, int> sizes,
+  ) {
     final now = DateTime.now();
     List<AssetEntity> filtered = screenshots.where((asset) {
       final age = now.difference(asset.createDateTime);
@@ -100,26 +114,38 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
     try {
+      final canTrash = await MediaService.supportsTrash();
+      if (!mounted) return;
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
+                  color:
+                      (isDark
+                              ? AppColors.trashRedDark
+                              : AppColors.trashRedLight)
+                          .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.delete_sweep_rounded,
-                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  color: isDark
+                      ? AppColors.trashRedDark
+                      : AppColors.trashRedLight,
                   size: 24,
                 ),
               ),
@@ -133,24 +159,41 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             ],
           ),
           content: Text(
-            '${_selectedIds.length} expired screenshot(s) will be permanently deleted.',
+            '${_selectedIds.length} expired screenshot(s) will be ${canTrash ? 'moved to Trash' : 'permanently deleted'}.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: AppTypography.meta13(color: mutedColor)),
+              child: Text(
+                'Cancel',
+                style: AppTypography.meta13(color: mutedColor),
+              ),
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                backgroundColor: isDark
+                    ? AppColors.trashRedDark
+                    : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
-              label: Text('Delete Permanently', style: AppTypography.button15(color: Colors.white)),
+              icon: const Icon(
+                Icons.delete_sweep_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
+              label: Text(
+                canTrash ? 'Move to Trash' : 'Delete Permanently',
+                style: AppTypography.button15(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -159,7 +202,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
       if (confirm == true && mounted) {
         HapticFeedback.mediumImpact();
         final List<String> idsToDelete = _selectedIds.toList();
-        final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+        final List<String> result = await MediaService.removeAssetsWithIds(
+          idsToDelete,
+        );
 
         if (mounted && result.isNotEmpty) {
           final count = result.length;
@@ -170,24 +215,20 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             _selectedIds.removeWhere((id) => result.contains(id));
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.ink,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              content: Text(
-                'Successfully deleted $count expired screenshots',
-                style: AppTypography.body15(color: Colors.white),
-              ),
-            ),
+          await showOperationResult(
+            context,
+            message: 'Removed $count expired screenshots from the gallery.',
           );
+          if (!mounted) return;
         }
       }
     } catch (e) {
       debugPrint('[ScreenshotCleaner Error] $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete selected screenshots')),
+          const SnackBar(
+            content: Text('Failed to delete selected screenshots'),
+          ),
         );
       }
     } finally {
@@ -227,7 +268,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ScanProvider>();
-    final allScreenshots = provider.categories['Screenshots'] ?? [];
+    final allScreenshots = provider.screenshotAssets;
     final sizes = provider.assetSizes;
 
     final displayedScreenshots = _filterScreenshots(allScreenshots, sizes);
@@ -255,13 +296,17 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
     final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
     final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
     final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
 
     final displayedIds = displayedScreenshots.map((a) => a.id).toSet();
-    final bool allCurrentSelected = displayedIds.isNotEmpty && displayedIds.every((id) => _selectedIds.contains(id));
+    final bool allCurrentSelected =
+        displayedIds.isNotEmpty &&
+        displayedIds.every((id) => _selectedIds.contains(id));
 
     return Scaffold(
       backgroundColor: bg,
@@ -282,7 +327,10 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             ),
             Text(
               '${allScreenshots.length} screenshots | ${AppUtils.formatBytes(totalScreenshotsBytes)}',
-              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+              style: AppTypography.caption11(
+                color: mutedColor,
+                letterSpacing: 0,
+              ),
             ),
           ],
         ),
@@ -291,7 +339,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             icon: Icon(Icons.sort_rounded, color: textColor),
             tooltip: 'Sort items',
             color: cardBg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             initialValue: _sortOption,
             onSelected: (val) {
               HapticFeedback.selectionClick();
@@ -300,15 +350,24 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: 'date_desc',
-                child: Text('Newest date first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Newest date first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
               PopupMenuItem(
                 value: 'date_asc',
-                child: Text('Oldest date first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Oldest date first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
               PopupMenuItem(
                 value: 'size',
-                child: Text('Largest size first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Largest size first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
             ],
           ),
@@ -318,8 +377,13 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
               child: TextButton(
                 style: TextButton.styleFrom(
                   backgroundColor: lilacChip,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   HapticFeedback.selectionClick();
@@ -333,7 +397,10 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                 },
                 child: Text(
                   allCurrentSelected ? 'Deselect' : 'Select all',
-                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                  style: AppTypography.meta13(
+                    color: lilacChipText,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -358,14 +425,20 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.ink,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             'EXPIRED',
-                            style: AppTypography.caption11(color: AppColors.gold, letterSpacing: 0.8),
+                            style: AppTypography.caption11(
+                              color: AppColors.gold,
+                              letterSpacing: 0.8,
+                            ),
                           ),
                         ),
                         if (totalOlderThan30DaysCount > 0)
@@ -373,21 +446,37 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.ink,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             onPressed: () {
                               HapticFeedback.selectionClick();
                               setState(() {
-                                _activeAgeFilter = ScreenshotAgeFilter.olderThan30Days;
+                                _activeAgeFilter =
+                                    ScreenshotAgeFilter.olderThan30Days;
                                 _autoSelectCurrentAgeGroup(
-                                  allScreenshots.where((a) => now.difference(a.createDateTime).inDays >= 30).toList(),
+                                  allScreenshots
+                                      .where(
+                                        (a) =>
+                                            now
+                                                .difference(a.createDateTime)
+                                                .inDays >=
+                                            30,
+                                      )
+                                      .toList(),
                                 );
                               });
                             },
                             child: Text(
                               'Select expired',
-                              style: AppTypography.button15(color: Colors.white).copyWith(fontSize: 13),
+                              style: AppTypography.button15(
+                                color: Colors.white,
+                              ).copyWith(fontSize: 13),
                             ),
                           ),
                       ],
@@ -400,7 +489,10 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                     const Gap(6),
                     Text(
                       '$totalOlderThan30DaysCount old OTPs, tickets, receipts, and order confirmations',
-                      style: AppTypography.body15(color: AppColors.ink, fontWeight: FontWeight.w500),
+                      style: AppTypography.body15(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -425,7 +517,10 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                           setState(() => _activeAgeFilter = filter);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: _activeAgeFilter == filter
                                 ? AppColors.violet
@@ -439,7 +534,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                               color: _activeAgeFilter == filter
                                   ? Colors.white
                                   : textColor,
-                              fontWeight: _activeAgeFilter == filter ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight: _activeAgeFilter == filter
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                           ),
                         ),
@@ -459,11 +556,17 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                 children: [
                   Text(
                     '${displayedScreenshots.length} screenshots found',
-                    style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
+                    style: AppTypography.meta13(
+                      color: mutedColor,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     _activeAgeFilter.label,
-                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                    style: AppTypography.caption11(
+                      color: mutedColor,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ],
               ),
@@ -486,7 +589,11 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                           color: AppColors.gold.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.check_circle_rounded, size: 48, color: AppColors.gold),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          size: 48,
+                          color: AppColors.gold,
+                        ),
                       ),
                       const Gap(16),
                       Text(
@@ -499,16 +606,23 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                         textAlign: TextAlign.center,
                         style: AppTypography.body15(color: mutedColor),
                       ),
-                      if (allScreenshots.isNotEmpty && _activeAgeFilter != ScreenshotAgeFilter.allScreenshots) ...[
+                      if (allScreenshots.isNotEmpty &&
+                          _activeAgeFilter !=
+                              ScreenshotAgeFilter.allScreenshots) ...[
                         const Gap(16),
                         FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor: lilacChip,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                           onPressed: () {
                             HapticFeedback.selectionClick();
-                            setState(() => _activeAgeFilter = ScreenshotAgeFilter.allScreenshots);
+                            setState(
+                              () => _activeAgeFilter =
+                                  ScreenshotAgeFilter.allScreenshots,
+                            );
                           },
                           child: Text(
                             'View All Screenshots',
@@ -523,7 +637,12 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
             )
           else
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 120 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                120 + MediaQuery.paddingOf(context).bottom,
+              ),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -531,122 +650,136 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                   mainAxisSpacing: 8,
                   childAspectRatio: 0.72,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, index) {
-                    final asset = displayedScreenshots[index];
-                    final isSelected = _selectedIds.contains(asset.id);
-                    final size = sizes[asset.id] ?? 0;
-                    final daysOld = now.difference(asset.createDateTime).inDays;
-                    final String ageText = daysOld <= 0
-                        ? 'Today'
-                        : (daysOld == 1 ? '1d ago' : '${daysOld}d ago');
-                    final dateStr = DateFormat('MMM d').format(asset.createDateTime);
+                delegate: SliverChildBuilderDelegate((ctx, index) {
+                  final asset = displayedScreenshots[index];
+                  final isSelected = _selectedIds.contains(asset.id);
+                  final size = sizes[asset.id] ?? 0;
+                  final daysOld = now.difference(asset.createDateTime).inDays;
+                  final String ageText = daysOld <= 0
+                      ? 'Today'
+                      : (daysOld == 1 ? '1d ago' : '${daysOld}d ago');
+                  final dateStr = DateFormat(
+                    'MMM d',
+                  ).format(asset.createDateTime);
 
-                    return GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          if (isSelected) {
-                            _selectedIds.remove(asset.id);
-                          } else {
-                            _selectedIds.add(asset.id);
-                          }
-                        });
-                      },
-                      onLongPress: () => _inspectAsset(asset),
-                      child: Stack(
-                        children: [
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        if (isSelected) {
+                          _selectedIds.remove(asset.id);
+                        } else {
+                          _selectedIds.add(asset.id);
+                        }
+                      });
+                    },
+                    onLongPress: () => _inspectAsset(asset),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: AssetEntityImage(
+                              asset,
+                              isOriginal: false,
+                              thumbnailSize: const ThumbnailSize.square(300),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+
+                        if (isSelected)
                           Positioned.fill(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: AssetEntityImage(
-                                asset,
-                                isOriginal: false,
-                                thumbnailSize: const ThumbnailSize.square(300),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-
-                          if (isSelected)
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: trashRed, width: 2.5),
-                                  borderRadius: BorderRadius.circular(16),
-                                  color: trashRed.withValues(alpha: 0.32),
-                                ),
-                              ),
-                            ),
-
-                          // Top-Left Age Pill
-                          Positioned(
-                            top: 6,
-                            left: 6,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.7),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                ageText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                border: Border.all(color: trashRed, width: 2.5),
+                                borderRadius: BorderRadius.circular(16),
+                                color: trashRed.withValues(alpha: 0.32),
                               ),
                             ),
                           ),
 
-                          // Checkbox Top-Right
-                          Positioned(
-                            top: 6,
-                            right: 6,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
-                              ),
-                              child: Icon(
-                                isSelected ? Icons.delete_outline_rounded : Icons.circle,
-                                color: isSelected ? Colors.white : Colors.transparent,
-                                size: 12,
+                        // Top-Left Age Pill
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              ageText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
+                        ),
 
-                          // Bottom Pill (Size & Date)
-                          Positioned(
-                            bottom: 5,
-                            left: 5,
-                            right: 5,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.65),
-                                borderRadius: BorderRadius.circular(6),
+                        // Checkbox Top-Right
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? trashRed
+                                  : Colors.black.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
                               ),
-                              child: Text(
-                                '$dateStr | ${AppUtils.formatBytes(size)}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            ),
+                            child: Icon(
+                              isSelected
+                                  ? Icons.delete_outline_rounded
+                                  : Icons.circle,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              size: 12,
+                            ),
+                          ),
+                        ),
+
+                        // Bottom Pill (Size & Date)
+                        Positioned(
+                          bottom: 5,
+                          left: 5,
+                          right: 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$dateStr | ${AppUtils.formatBytes(size)}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                  childCount: displayedScreenshots.length,
-                ),
+                        ),
+                      ],
+                    ),
+                  );
+                }, childCount: displayedScreenshots.length),
               ),
             ),
         ],
@@ -656,10 +789,17 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                16 + MediaQuery.paddingOf(context).bottom,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.ink2 : AppColors.ink,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Row(
                 children: [
@@ -672,7 +812,9 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                           '${_selectedIds.length} selected',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.subheading17(color: Colors.white),
+                          style: AppTypography.subheading17(
+                            color: Colors.white,
+                          ),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
@@ -688,11 +830,20 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.ink,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: _isProcessing ? null : _cleanSelected,
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    icon: const Icon(
+                      Icons.delete_sweep_rounded,
+                      size: 20,
+                      color: AppColors.ink,
+                    ),
                     label: Text(
                       'Delete Selected',
                       style: AppTypography.button15(color: AppColors.ink),

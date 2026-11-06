@@ -1,3 +1,4 @@
+import '../../../common/dashboard_ad.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -19,23 +20,59 @@ class CleanerTab extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 130 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          130 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: const [
           _TopBarSection(),
           Gap(16),
           _ScopeChipsSection(),
           Gap(18),
+          _CachedCoverageNotice(),
           _LiveScanningSection(),
           _HeroReclaimableCard(),
           Gap(24),
           _QuickToolsSection(),
           Gap(28),
           _MoreToolsSection(),
+          DashboardAd(),
           Gap(20),
         ],
       ),
     );
   }
+}
+
+class _CachedCoverageNotice extends StatelessWidget {
+  const _CachedCoverageNotice();
+  @override
+  Widget build(BuildContext context) => Selector<ScanProvider, (String?, bool)>(
+    selector: (_, provider) => (provider.catalogNotice, provider.isLoading),
+    builder: (context, data, _) => data.$1 == null
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data.$1!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                TextButton(
+                  onPressed: data.$2
+                      ? null
+                      : () => context.read<ScanProvider>().scan(force: true),
+                  child: const Text('Refresh'),
+                ),
+              ],
+            ),
+          ),
+  );
 }
 
 // ---------------------------------------------------------
@@ -72,7 +109,7 @@ class _TopBarSection extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.asset(
-                    'assets/snap_icon_gradient.png',
+                    'assets/app_icon_new.png',
                     width: 38,
                     height: 38,
                     fit: BoxFit.cover,
@@ -98,10 +135,12 @@ class _TopBarSection extends StatelessWidget {
           selector: (_, p) => p.isLoading,
           builder: (context, isLoading, _) {
             return GestureDetector(
-              onTap: isLoading ? null : () {
-                HapticFeedback.selectionClick();
-                context.read<ScanProvider>().scan(force: true);
-              },
+              onTap: isLoading
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      context.read<ScanProvider>().scan(force: true);
+                    },
               child: Container(
                 width: 40,
                 height: 40,
@@ -109,7 +148,9 @@ class _TopBarSection extends StatelessWidget {
                   color: isDark ? AppColors.ink2 : Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.lilac2,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppColors.lilac2,
                   ),
                 ),
                 child: Center(
@@ -161,13 +202,16 @@ class _ScopeChipsSection extends StatelessWidget {
               final isSelected = scope == data.scope;
 
               return GestureDetector(
-                onTap: data.isLoading ? null : () {
+                onTap: () {
                   HapticFeedback.selectionClick();
                   context.read<ScanProvider>().setScanScope(scope);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.violet
@@ -176,7 +220,9 @@ class _ScopeChipsSection extends StatelessWidget {
                     border: Border.all(
                       color: isSelected
                           ? AppColors.violet
-                          : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5)),
+                          : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : AppColors.lilac2.withValues(alpha: 0.5)),
                     ),
                   ),
                   child: Center(
@@ -185,8 +231,12 @@ class _ScopeChipsSection extends StatelessWidget {
                       style: AppTypography.meta13(
                         color: isSelected
                             ? Colors.white
-                            : (isDark ? const Color(0xFFA49EBA) : AppColors.ink),
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            : (isDark
+                                  ? const Color(0xFFA49EBA)
+                                  : AppColors.ink),
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                       ),
                     ),
                   ),
@@ -208,15 +258,41 @@ class _LiveScanningSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({bool isLoading, double progress, String message, List<AssetEntity> recent})>(
+    return Selector<
+      ScanProvider,
+      ({
+        bool isLoading,
+        double progress,
+        String message,
+        String? error,
+        List<AssetEntity> recent,
+      })
+    >(
       selector: (_, p) => (
         isLoading: p.isLoading,
         progress: p.progress,
         message: p.scanStatusMessage,
+        error: p.scanErrorMessage,
         recent: List.of(p.recentScanned),
       ),
       builder: (context, data, _) {
-        if (!data.isLoading) return const SizedBox.shrink();
+        if (!data.isLoading) {
+          if (data.error == null) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(data.error!),
+                TextButton(
+                  onPressed: () =>
+                      context.read<ScanProvider>().scan(force: true),
+                  child: const Text('Retry scan'),
+                ),
+              ],
+            ),
+          );
+        }
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final cardBg = isDark ? AppColors.ink2 : Colors.white;
@@ -237,7 +313,9 @@ class _LiveScanningSection extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      data.message.isEmpty ? "Scanning gallery..." : data.message,
+                      data.message.isEmpty
+                          ? "Scanning gallery..."
+                          : data.message,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.body15(
@@ -259,8 +337,12 @@ class _LiveScanningSection extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: data.progress.clamp(0.0, 1.0),
                   minHeight: 8,
-                  backgroundColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                  backgroundColor: isDark
+                      ? const Color(0xFF281357)
+                      : AppColors.lilac,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppColors.gold,
+                  ),
                 ),
               ),
               if (data.recent.isNotEmpty) ...[
@@ -275,6 +357,7 @@ class _LiveScanningSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           child: AssetEntityImage(
                             asset,
+                            isOriginal: false,
                             width: 36,
                             height: 36,
                             fit: BoxFit.cover,
@@ -302,15 +385,18 @@ class _HeroReclaimableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ScanProvider, ({
-      bool isLoading,
-      int totalItems,
-      String reclaimableSize,
-      String dupSize,
-      String vidSize,
-      String otherSize,
-      int smartCleanBytes,
-    })>(
+    return Selector<
+      ScanProvider,
+      ({
+        bool isLoading,
+        int totalItems,
+        String reclaimableSize,
+        String dupSize,
+        String vidSize,
+        String otherSize,
+        int smartCleanBytes,
+      })
+    >(
       selector: (_, p) {
         final totalReclaim = p.smartCleanSize;
         final totalItems = p.smartCleanCandidates.length;
@@ -435,18 +521,12 @@ class _HeroReclaimableCard extends StatelessWidget {
                   children: [
                     Expanded(
                       flex: 4,
-                      child: Container(
-                        height: 6,
-                        color: AppColors.violet,
-                      ),
+                      child: Container(height: 6, color: AppColors.violet),
                     ),
                     const Gap(3),
                     Expanded(
                       flex: 5,
-                      child: Container(
-                        height: 6,
-                        color: AppColors.gold,
-                      ),
+                      child: Container(height: 6, color: AppColors.gold),
                     ),
                     const Gap(3),
                     Expanded(
@@ -526,12 +606,16 @@ class _HeroReclaimableCard extends StatelessWidget {
                     children: [
                       Text(
                         "Review and clean",
-                        style: AppTypography.button15(color: AppColors.ink)
-                            .copyWith(fontSize: 16),
+                        style: AppTypography.button15(
+                          color: AppColors.ink,
+                        ).copyWith(fontSize: 16),
                       ),
                       const Gap(10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.ink,
                           borderRadius: BorderRadius.circular(8),
@@ -564,19 +648,22 @@ class _QuickToolsSection extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryTextColor = isDark ? Colors.white : AppColors.ink;
 
-    return Selector<ScanProvider, ({
-      bool isLoading,
-      int dupCount,
-      String dupSize,
-      int burstCount,
-      String burstSize,
-      int blurCount,
-      String blurSize,
-    })>(
+    return Selector<
+      ScanProvider,
+      ({
+        bool isLoading,
+        int dupCount,
+        String dupSize,
+        int burstCount,
+        String burstSize,
+        int blurCount,
+        String blurSize,
+      })
+    >(
       selector: (_, p) => (
         isLoading: p.isLoading,
-        dupCount: p.totalDuplicateCount,
-        dupSize: p.formattedDuplicateSize,
+        dupCount: p.reviewGroupCount,
+        dupSize: p.reviewGroupSummary,
         burstCount: p.similarGroups.length,
         burstSize: p.formattedSimilarSize,
         blurCount: p.blurryPhotos.length,
@@ -594,7 +681,10 @@ class _QuickToolsSection extends StatelessWidget {
                   style: AppTypography.heading20(color: primaryTextColor),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF281357) : AppColors.lilac,
                     borderRadius: BorderRadius.circular(12),
@@ -623,8 +713,8 @@ class _QuickToolsSection extends StatelessWidget {
                       subtextColor: Colors.white.withValues(alpha: 0.8),
                       icon: Icons.copy_rounded,
                       number: data.isLoading ? "..." : "${data.dupCount}",
-                      title: "Exact duplicates",
-                      subtitle: "${data.dupSize} safe to free",
+                      title: "Duplicates & similar",
+                      subtitle: data.dupSize,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         context.push('/duplicates');
@@ -662,7 +752,10 @@ class _QuickToolsSection extends StatelessWidget {
                 context.push('/blurry-photos');
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.ink2 : Colors.white,
                   borderRadius: BorderRadius.circular(24),
@@ -678,7 +771,9 @@ class _QuickToolsSection extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                        color: isDark
+                            ? const Color(0xFF281357)
+                            : AppColors.lilac,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Icon(
@@ -714,7 +809,9 @@ class _QuickToolsSection extends StatelessWidget {
                     ),
                     Icon(
                       Icons.chevron_right_rounded,
-                      color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      color: isDark
+                          ? const Color(0xFFA49EBA)
+                          : const Color(0xFF5F567A),
                     ),
                   ],
                 ),
@@ -766,7 +863,9 @@ class _QuickToolsSection extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     number,
-                    style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                    style: AppTypography.title30(
+                      color: textColor,
+                    ).copyWith(fontSize: 28),
                   ),
                 ),
                 const Gap(2),
@@ -786,7 +885,10 @@ class _QuickToolsSection extends StatelessWidget {
                   child: Text(
                     subtitle,
                     maxLines: 1,
-                    style: AppTypography.caption11(color: subtextColor, letterSpacing: 0),
+                    style: AppTypography.caption11(
+                      color: subtextColor,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
               ],
@@ -809,25 +911,28 @@ class _MoreToolsSection extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryTextColor = isDark ? Colors.white : AppColors.ink;
 
-    return Selector<ScanProvider, ({
-      bool isLoading,
-      int vidCount,
-      String vidSize,
-      int socialCount,
-      String socialSize,
-      int screenshotCount,
-      String screenshotSize,
-      int totalItems,
-      String totalSize,
-    })>(
+    return Selector<
+      ScanProvider,
+      ({
+        bool isLoading,
+        int vidCount,
+        String vidSize,
+        int socialCount,
+        String socialSize,
+        int screenshotCount,
+        String screenshotSize,
+        int totalItems,
+        String totalSize,
+      })
+    >(
       selector: (_, p) => (
         isLoading: p.isLoading,
         vidCount: p.largeVideos.length,
         vidSize: p.formattedLargeVideosSize,
-        socialCount: p.categories['Social & WhatsApp']?.length ?? 0,
-        socialSize: p.getFormattedCategorySize('Social & WhatsApp'),
-        screenshotCount: p.categories['Screenshots']?.length ?? 0,
-        screenshotSize: p.getFormattedCategorySize('Screenshots'),
+        socialCount: p.socialMediaAssets.length,
+        socialSize: AppUtils.formatBytes(p.getSourceSize('Social & WhatsApp')),
+        screenshotCount: p.screenshotAssets.length,
+        screenshotSize: AppUtils.formatBytes(p.getSourceSize('Screenshots')),
         totalItems: p.allScreenshots.length,
         totalSize: p.formattedTotalSize,
       ),
@@ -844,7 +949,9 @@ class _MoreToolsSection extends StatelessWidget {
                     Text(
                       "CLEANER",
                       style: AppTypography.caption11(
-                        color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                        color: isDark
+                            ? const Color(0xFFA49EBA)
+                            : const Color(0xFF5F567A),
                         letterSpacing: 1.2,
                       ),
                     ),
@@ -856,7 +963,10 @@ class _MoreToolsSection extends StatelessWidget {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF281357) : AppColors.lilac,
                     borderRadius: BorderRadius.circular(12),
@@ -904,7 +1014,9 @@ class _MoreToolsSection extends StatelessWidget {
                       context: context,
                       bg: isDark ? const Color(0xFF200F48) : AppColors.lilac,
                       textColor: isDark ? Colors.white : AppColors.ink,
-                      subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      subtextColor: isDark
+                          ? const Color(0xFFA49EBA)
+                          : const Color(0xFF5F567A),
                       iconContainerBg: AppColors.violet,
                       iconColor: Colors.white,
                       icon: Icons.compress_rounded,
@@ -955,11 +1067,15 @@ class _MoreToolsSection extends StatelessWidget {
                       context: context,
                       bg: isDark ? AppColors.ink2 : Colors.white,
                       textColor: isDark ? Colors.white : AppColors.ink,
-                      subtextColor: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      subtextColor: isDark
+                          ? const Color(0xFFA49EBA)
+                          : const Color(0xFF5F567A),
                       iconContainerBg: AppColors.gold,
                       iconColor: AppColors.ink,
                       icon: Icons.phone_android_rounded,
-                      number: data.isLoading ? "..." : "${data.screenshotCount}",
+                      number: data.isLoading
+                          ? "..."
+                          : "${data.screenshotCount}",
                       title: "Screenshot expiry",
                       subtitle: "Older than 30 days",
                       onTap: () {
@@ -982,7 +1098,10 @@ class _MoreToolsSection extends StatelessWidget {
                 context.push('/storage-timeline');
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.ink2 : Colors.white,
                   borderRadius: BorderRadius.circular(24),
@@ -1032,7 +1151,9 @@ class _MoreToolsSection extends StatelessWidget {
                     ),
                     Icon(
                       Icons.chevron_right_rounded,
-                      color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      color: isDark
+                          ? const Color(0xFFA49EBA)
+                          : const Color(0xFF5F567A),
                     ),
                   ],
                 ),
@@ -1099,7 +1220,9 @@ class _MoreToolsSection extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     number,
-                    style: AppTypography.title30(color: textColor).copyWith(fontSize: 28),
+                    style: AppTypography.title30(
+                      color: textColor,
+                    ).copyWith(fontSize: 28),
                   ),
                 ),
                 const Gap(2),
@@ -1119,7 +1242,10 @@ class _MoreToolsSection extends StatelessWidget {
                   child: Text(
                     subtitle,
                     maxLines: 1,
-                    style: AppTypography.caption11(color: subtextColor, letterSpacing: 0),
+                    style: AppTypography.caption11(
+                      color: subtextColor,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
               ],

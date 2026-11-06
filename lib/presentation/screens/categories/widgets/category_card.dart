@@ -38,10 +38,31 @@ class CategoryCard extends StatelessWidget {
         return Icons.badge_rounded;
       case 'Food & Dining':
         return Icons.restaurant_rounded;
-      case 'Memes & Downloads':
+      case 'Downloads':
+      case 'Memes & Graphics':
         return Icons.download_rounded;
       case 'Personal & Portraits':
         return Icons.portrait_rounded;
+      case 'Nature & Landscapes':
+        return Icons.landscape_rounded;
+      case 'Travel & Places':
+        return Icons.travel_explore_rounded;
+      case 'Pets & Animals':
+        return Icons.pets_rounded;
+      case 'Vehicles':
+        return Icons.directions_car_rounded;
+      case 'Shopping & Products':
+        return Icons.shopping_bag_rounded;
+      case 'Events & Celebrations':
+        return Icons.celebration_rounded;
+      case 'Sports & Fitness':
+        return Icons.sports_basketball_rounded;
+      case 'Art & Design':
+        return Icons.palette_rounded;
+      case 'Photo Library':
+        return Icons.photo_library_rounded;
+      case 'Videos':
+        return Icons.video_library_rounded;
       default:
         return Icons.folder_special_rounded;
     }
@@ -52,11 +73,38 @@ class CategoryCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // 4-color cycling system per PDF design: Violet, Ink, Gold, Lilac
-    final (Color cardBg, Color textColor, Color mutedColor, Color iconBg) = switch (index % 4) {
-      0 => (AppColors.violet, Colors.white, AppColors.lilac, Colors.white.withValues(alpha: 0.2)),
-      1 => (isDark ? AppColors.ink2 : AppColors.ink, Colors.white, AppColors.lilac, Colors.white.withValues(alpha: 0.2)),
-      2 => (AppColors.gold, AppColors.ink, AppColors.ink.withValues(alpha: 0.7), AppColors.ink.withValues(alpha: 0.12)),
-      _ => (isDark ? AppColors.violetDeep : AppColors.lilac, isDark ? Colors.white : AppColors.ink, isDark ? AppColors.lilac : AppColors.ink.withValues(alpha: 0.7), isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.ink.withValues(alpha: 0.08)),
+    final (
+      Color cardBg,
+      Color textColor,
+      Color mutedColor,
+      Color iconBg,
+    ) = switch (index % 4) {
+      0 => (
+        AppColors.violet,
+        Colors.white,
+        AppColors.lilac,
+        Colors.white.withValues(alpha: 0.2),
+      ),
+      1 => (
+        isDark ? AppColors.ink2 : AppColors.ink,
+        Colors.white,
+        AppColors.lilac,
+        Colors.white.withValues(alpha: 0.2),
+      ),
+      2 => (
+        AppColors.gold,
+        AppColors.ink,
+        AppColors.ink.withValues(alpha: 0.7),
+        AppColors.ink.withValues(alpha: 0.12),
+      ),
+      _ => (
+        isDark ? AppColors.violetDeep : AppColors.lilac,
+        isDark ? Colors.white : AppColors.ink,
+        isDark ? AppColors.lilac : AppColors.ink.withValues(alpha: 0.7),
+        isDark
+            ? Colors.white.withValues(alpha: 0.15)
+            : AppColors.ink.withValues(alpha: 0.08),
+      ),
     };
 
     return RepaintBoundary(
@@ -75,7 +123,9 @@ class CategoryCard extends StatelessWidget {
               // Top Section: Prominent, edge-to-edge photo preview (never small or boxed)
               Expanded(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(22),
+                  ),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -83,20 +133,21 @@ class CategoryCard extends StatelessWidget {
                           ? AssetEntityImage(
                               thumbnail!,
                               isOriginal: false,
-                              thumbnailSize: const ThumbnailSize.square(500),
+                              thumbnailSize: const ThumbnailSize.square(256),
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                color: iconBg.withValues(alpha: 0.18),
-                                child: Center(
-                                  child: Icon(
-                                    _getCategoryIcon(title),
-                                    size: 42,
-                                    color: textColor.withValues(alpha: 0.4),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    color: iconBg.withValues(alpha: 0.18),
+                                    child: Center(
+                                      child: Icon(
+                                        _getCategoryIcon(title),
+                                        size: 42,
+                                        color: textColor.withValues(alpha: 0.4),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
                             )
                           : Container(
                               color: iconBg.withValues(alpha: 0.18),
@@ -149,7 +200,10 @@ class CategoryCard extends StatelessWidget {
                             ),
                             if (size != null && size!.isNotEmpty)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.black.withValues(alpha: 0.50),
                                   borderRadius: BorderRadius.circular(7),

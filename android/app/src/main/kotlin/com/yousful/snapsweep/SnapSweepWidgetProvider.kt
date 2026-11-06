@@ -26,7 +26,7 @@ class SnapSweepWidgetProvider : HomeWidgetProvider() {
 
                 val labelText = widgetData.getString("widget_label", "RECLAIMABLE") ?: "RECLAIMABLE"
                 val reclaimableText = widgetData.getString("widget_reclaimable", "0 B") ?: "0 B"
-                val countText = widgetData.getString("widget_count", "OPTIMIZED") ?: "OPTIMIZED"
+                val countText = widgetData.getString("widget_count", "OPEN TO SCAN") ?: "OPEN TO SCAN"
 
                 views.setTextViewText(R.id.widget_label, labelText)
                 views.setTextViewText(R.id.widget_reclaimable, reclaimableText)

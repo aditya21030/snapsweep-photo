@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
 
@@ -51,32 +53,48 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
   }
 
   Future<void> _cleanSelected() async {
-    if (_isProcessing || _selectedIds.isEmpty) return;
+    if (_isProcessing ||
+        _selectedIds.isEmpty ||
+        context.read<ScanProvider>().isLoading) {
+      return;
+    }
     _isProcessing = true;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
     try {
+      final canTrash = await MediaService.supportsTrash();
+      if (!mounted) return;
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
+                  color:
+                      (isDark
+                              ? AppColors.trashRedDark
+                              : AppColors.trashRedLight)
+                          .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.delete_sweep_rounded,
-                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  color: isDark
+                      ? AppColors.trashRedDark
+                      : AppColors.trashRedLight,
                   size: 24,
                 ),
               ),
@@ -90,7 +108,7 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
             ],
           ),
           content: Text(
-            '${_selectedIds.length} redundant burst photo(s) will be permanently deleted.\n\nYour best crowned shots will be safely kept and locked.',
+            '${_selectedIds.length} redundant burst photo(s) will be ${canTrash ? 'moved to Trash' : 'permanently deleted'}.\n\nYour best crowned shots will be kept.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -104,14 +122,25 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                backgroundColor: isDark
+                    ? AppColors.trashRedDark
+                    : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
+              icon: const Icon(
+                Icons.delete_sweep_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
               label: Text(
-                'Delete Permanently',
+                canTrash ? 'Move to Trash' : 'Delete Permanently',
                 style: AppTypography.button15(color: Colors.white),
               ),
             ),
@@ -122,7 +151,9 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
       if (confirm == true && mounted) {
         HapticFeedback.mediumImpact();
         final List<String> idsToDelete = _selectedIds.toList();
-        final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+        final List<String> result = await MediaService.removeAssetsWithIds(
+          idsToDelete,
+        );
 
         if (mounted && result.isNotEmpty) {
           final count = result.length;
@@ -133,17 +164,11 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
             _selectedIds.removeWhere((id) => result.contains(id));
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.ink,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              content: Text(
-                'Successfully deleted $count redundant shots',
-                style: AppTypography.body15(color: Colors.white),
-              ),
-            ),
+          await showOperationResult(
+            context,
+            message: 'Removed $count redundant shots from the gallery.',
           );
+          if (!mounted) return;
         }
       }
     } catch (e) {
@@ -187,7 +212,11 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     }
   }
 
-  String _getShotDefectTag(ScanProvider provider, AssetEntity asset, AssetEntity bestShot) {
+  String _getShotDefectTag(
+    ScanProvider provider,
+    AssetEntity asset,
+    AssetEntity bestShot,
+  ) {
     final blurType = provider.getAssetBlurType(asset.id);
     if (blurType == 'motion') {
       return 'Motion blur';
@@ -238,7 +267,9 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
     final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
     final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
     final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
@@ -258,12 +289,19 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
           children: [
             Text(
               'Burst and best shot',
-              style: AppTypography.heading20(color: textColor),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.heading20(
+                color: textColor,
+              ).copyWith(fontSize: 17),
             ),
             if (groups.isNotEmpty)
               Text(
                 '${groups.length} clusters | ${AppUtils.formatBytes(totalRedundantBytes)}',
-                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                style: AppTypography.caption11(
+                  color: mutedColor,
+                  letterSpacing: 0,
+                ),
               ),
           ],
         ),
@@ -282,12 +320,20 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                 },
                 style: TextButton.styleFrom(
                   backgroundColor: lilacChip,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: Text(
-                  _selectedIds.isEmpty ? 'Select inferior' : 'Clear all',
-                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                  _selectedIds.isEmpty ? 'Select' : 'Clear',
+                  style: AppTypography.meta13(
+                    color: lilacChipText,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -306,7 +352,11 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                         color: AppColors.gold.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.workspace_premium_rounded, color: AppColors.gold, size: 52),
+                      child: const Icon(
+                        Icons.workspace_premium_rounded,
+                        color: AppColors.gold,
+                        size: 52,
+                      ),
                     ),
                     const Gap(20),
                     Text(
@@ -315,23 +365,46 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                     ),
                     const Gap(8),
                     Text(
-                      'All your photos have distinct compositions or no rapid duplicates.',
+                      provider.scanErrorMessage ??
+                          (provider.isLoading
+                              ? 'Analysis is still running.'
+                              : 'No matching sequences in ${provider.scanScope.label}.'),
                       textAlign: TextAlign.center,
                       style: AppTypography.body15(color: mutedColor),
                     ),
+                    if (provider.scanScope != ScanScope.fullGallery)
+                      TextButton(
+                        onPressed: () =>
+                            provider.setScanScope(ScanScope.fullGallery),
+                        child: const Text('Show full gallery'),
+                      ),
+                    if (!provider.isLoading)
+                      TextButton(
+                        onPressed: provider.recheckMatches,
+                        child: const Text('Recheck matches'),
+                      ),
                   ],
                 ),
               ),
             )
           : ListView.separated(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 120 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                120 + MediaQuery.paddingOf(context).bottom,
+              ),
               itemCount: groups.length,
               separatorBuilder: (_, _) => const Gap(16),
               itemBuilder: (ctx, clusterIdx) {
                 final group = groups[clusterIdx];
                 final bestShot = group.first;
-                final redundantShots = group.length > 1 ? group.sublist(1) : <AssetEntity>[];
-                final toTrashCount = group.where((a) => _selectedIds.contains(a.id)).length;
+                final redundantShots = group.length > 1
+                    ? group.sublist(1)
+                    : <AssetEntity>[];
+                final toTrashCount = group
+                    .where((a) => _selectedIds.contains(a.id))
+                    .length;
 
                 return Container(
                   padding: const EdgeInsets.all(16),
@@ -343,35 +416,54 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Cluster Header Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: AppColors.violet.withValues(alpha: 0.12),
+                                  color: AppColors.violet.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.burst_mode_rounded, size: 16, color: AppColors.violet),
+                                child: const Icon(
+                                  Icons.burst_mode_rounded,
+                                  size: 16,
+                                  color: AppColors.violet,
+                                ),
                               ),
                               const Gap(8),
                               Text(
                                 'CLUSTER ${clusterIdx + 1} | ${group.length} SHOTS',
-                                style: AppTypography.meta13(color: textColor, fontWeight: FontWeight.w700),
+                                style: AppTypography.meta13(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: lilacChip,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '$toTrashCount TO DELETE',
-                              style: AppTypography.caption11(color: lilacChipText, letterSpacing: 0.5),
+                              style: AppTypography.caption11(
+                                color: lilacChipText,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
                         ],
@@ -397,7 +489,9 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                     child: AssetEntityImage(
                                       bestShot,
                                       isOriginal: false,
-                                      thumbnailSize: const ThumbnailSize.square(500),
+                                      thumbnailSize: const ThumbnailSize.square(
+                                        256,
+                                      ),
                                       fit: BoxFit.cover,
                                     ),
                                   ),
@@ -406,7 +500,10 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                     top: 10,
                                     left: 10,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: AppColors.gold,
                                         borderRadius: BorderRadius.circular(10),
@@ -414,11 +511,18 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.workspace_premium_rounded, color: AppColors.ink, size: 14),
+                                          const Icon(
+                                            Icons.workspace_premium_rounded,
+                                            color: AppColors.ink,
+                                            size: 14,
+                                          ),
                                           const Gap(4),
                                           Text(
                                             'BEST SHOT',
-                                            style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.5),
+                                            style: AppTypography.caption11(
+                                              color: AppColors.ink,
+                                              letterSpacing: 0.5,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -429,19 +533,31 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                     top: 10,
                                     right: 10,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.6),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.6,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.lock_rounded, color: Colors.white, size: 12),
+                                          const Icon(
+                                            Icons.lock_rounded,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
                                           const Gap(4),
                                           Text(
                                             'Locked',
-                                            style: AppTypography.caption11(color: Colors.white, letterSpacing: 0),
+                                            style: AppTypography.caption11(
+                                              color: Colors.white,
+                                              letterSpacing: 0,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -455,34 +571,64 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                   children: [
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Builder(
                                             builder: (context) {
-                                              final bestSharpness = provider.getAssetSharpness(bestShot.id).round().clamp(60, 100);
+                                              final bestSharpness = provider
+                                                  .getAssetSharpness(
+                                                    bestShot.id,
+                                                  )
+                                                  .round()
+                                                  .clamp(60, 100);
                                               return Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Row(
+                                                  Wrap(
+                                                    spacing: 8,
+                                                    runSpacing: 4,
                                                     children: [
                                                       Text(
                                                         'Sharpness $bestSharpness%',
-                                                        style: AppTypography.caption11(color: textColor, letterSpacing: 0),
+                                                        style:
+                                                            AppTypography.caption11(
+                                                              color: textColor,
+                                                              letterSpacing: 0,
+                                                            ),
                                                       ),
                                                       const Gap(8),
                                                       Text(
                                                         'Best lighting & sharp focus',
-                                                        style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                                                        style:
+                                                            AppTypography.caption11(
+                                                              color: mutedColor,
+                                                              letterSpacing: 0,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w400,
+                                                            ),
                                                       ),
                                                     ],
                                                   ),
                                                   const Gap(6),
                                                   ClipRRect(
-                                                    borderRadius: BorderRadius.circular(4),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
                                                     child: LinearProgressIndicator(
-                                                      value: (bestSharpness / 100.0).clamp(0.0, 1.0),
-                                                      backgroundColor: lilacChip,
-                                                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
+                                                      value:
+                                                          (bestSharpness /
+                                                                  100.0)
+                                                              .clamp(0.0, 1.0),
+                                                      backgroundColor:
+                                                          lilacChip,
+                                                      valueColor:
+                                                          const AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(AppColors.gold),
                                                       minHeight: 4,
                                                     ),
                                                   ),
@@ -495,8 +641,13 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                                     ),
                                     const Gap(12),
                                     Text(
-                                      AppUtils.formatBytes(sizes[bestShot.id] ?? 0),
-                                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                                      AppUtils.formatBytes(
+                                        sizes[bestShot.id] ?? 0,
+                                      ),
+                                      style: AppTypography.caption11(
+                                        color: mutedColor,
+                                        letterSpacing: 0,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -513,125 +664,163 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                           style: AppTypography.meta13(color: mutedColor),
                         ),
                         const Gap(8),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 0.82,
-                          ),
-                          itemCount: redundantShots.length,
-                          itemBuilder: (context, idx) {
-                            final asset = redundantShots[idx];
-                            final isSelected = _selectedIds.contains(asset.id);
-                            final defectTag = _getShotDefectTag(provider, asset, bestShot);
+                        SizedBox(
+                          height: 150,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemExtent: 114,
+                            itemCount: redundantShots.length,
+                            itemBuilder: (context, idx) {
+                              final asset = redundantShots[idx];
+                              final isSelected = _selectedIds.contains(
+                                asset.id,
+                              );
+                              final defectTag = _getShotDefectTag(
+                                provider,
+                                asset,
+                                bestShot,
+                              );
 
-                            return GestureDetector(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedIds.remove(asset.id);
-                                  } else {
-                                    _selectedIds.add(asset.id);
-                                  }
-                                });
-                              },
-                              onLongPress: () => _inspectAsset(asset),
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(14),
-                                      child: AssetEntityImage(
-                                        asset,
-                                        isOriginal: false,
-                                        thumbnailSize: const ThumbnailSize.square(300),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Tint overlay if selected for trash
-                                  if (isSelected)
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedIds.remove(asset.id);
+                                    } else {
+                                      _selectedIds.add(asset.id);
+                                    }
+                                  });
+                                },
+                                onLongPress: () => _inspectAsset(asset),
+                                child: Stack(
+                                  children: [
                                     Positioned.fill(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: AssetEntityImage(
+                                          asset,
+                                          isOriginal: false,
+                                          thumbnailSize:
+                                              const ThumbnailSize.square(300),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Tint overlay if selected for trash
+                                    if (isSelected)
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: trashRed,
+                                              width: 2.5,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            color: trashRed.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                    // Issue / defect tag
+                                    Positioned(
+                                      top: 6,
+                                      left: 6,
                                       child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
-                                          border: Border.all(color: trashRed, width: 2.5),
-                                          borderRadius: BorderRadius.circular(14),
-                                          color: trashRed.withValues(alpha: 0.3),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          defectTag,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
 
-                                  // Issue / defect tag
-                                  Positioned(
-                                    top: 6,
-                                    left: 6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.7),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        defectTag,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w600,
+                                    // Selection Checkbox
+                                    Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? trashRed
+                                              : Colors.black.withValues(
+                                                  alpha: 0.55,
+                                                ),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          isSelected
+                                              ? Icons.delete_outline_rounded
+                                              : Icons.circle,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.transparent,
+                                          size: 12,
                                         ),
                                       ),
                                     ),
-                                  ),
 
-                                  // Selection Checkbox
-                                  Positioned(
-                                    top: 6,
-                                    right: 6,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 1.5),
-                                      ),
-                                      child: Icon(
-                                        isSelected ? Icons.delete_outline_rounded : Icons.circle,
-                                        color: isSelected ? Colors.white : Colors.transparent,
-                                        size: 12,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Bottom file size
-                                  Positioned(
-                                    bottom: 5,
-                                    left: 5,
-                                    right: 5,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.65),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        AppUtils.formatBytes(sizes[asset.id] ?? 0),
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w600,
+                                    // Bottom file size
+                                    Positioned(
+                                      bottom: 5,
+                                      left: 5,
+                                      right: 5,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.65,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          AppUtils.formatBytes(
+                                            sizes[asset.id] ?? 0,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ],
@@ -644,10 +833,17 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                16 + MediaQuery.paddingOf(context).bottom,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.ink2 : AppColors.ink,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Row(
                 children: [
@@ -658,7 +854,9 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                       children: [
                         Text(
                           'Keep best, delete rest',
-                          style: AppTypography.subheading17(color: Colors.white),
+                          style: AppTypography.subheading17(
+                            color: Colors.white,
+                          ),
                         ),
                         Text(
                           '${_selectedIds.length} shots | ${AppUtils.formatBytes(selectedBytes)}',
@@ -672,15 +870,24 @@ class _BurstCleanerScreenState extends State<BurstCleanerScreen> {
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.ink,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: _isProcessing ? null : _cleanSelected,
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    onPressed: _isProcessing || provider.isLoading
+                        ? null
+                        : _cleanSelected,
+                    icon: const Icon(
+                      Icons.delete_sweep_rounded,
+                      size: 20,
+                      color: AppColors.ink,
+                    ),
                     label: Text(
-                      '1-tap purge',
+                      'Delete',
                       style: AppTypography.button15(color: AppColors.ink),
                     ),
                   ),

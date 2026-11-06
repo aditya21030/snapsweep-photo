@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
@@ -8,23 +9,19 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
 
-enum MessagingTabFilter {
-  sent,
-  videos,
-  photos,
-  all,
-}
+enum MessagingTabFilter { sent, videos, photos, all }
 
 extension MessagingTabFilterLabel on MessagingTabFilter {
   String get label => switch (this) {
-        MessagingTabFilter.sent => 'Sent copies',
-        MessagingTabFilter.videos => 'Videos',
-        MessagingTabFilter.photos => 'Photos',
-        MessagingTabFilter.all => 'All media',
-      };
+    MessagingTabFilter.sent => 'Sent copies',
+    MessagingTabFilter.videos => 'Videos',
+    MessagingTabFilter.photos => 'Photos',
+    MessagingTabFilter.all => 'All media',
+  };
 }
 
 class MessagingCleanerScreen extends StatefulWidget {
@@ -35,7 +32,7 @@ class MessagingCleanerScreen extends StatefulWidget {
 }
 
 class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
-  MessagingTabFilter _currentFilter = MessagingTabFilter.sent;
+  MessagingTabFilter _currentFilter = MessagingTabFilter.all;
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
   String _sortOption = 'size'; // 'size' or 'date'
@@ -67,7 +64,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
     }
 
     // Match discrete folder token "sent"
-    final folderPattern = RegExp(r'(^|[\\/_\s])sent([\\/_\s]|$)', caseSensitive: false);
+    final folderPattern = RegExp(
+      r'(^|[\\/_\s])sent([\\/_\s]|$)',
+      caseSensitive: false,
+    );
     return folderPattern.hasMatch(album) || folderPattern.hasMatch(relPath);
   }
 
@@ -81,10 +81,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
         result = allSocial.where((a) => _isSentMedia(a, albumMap)).toList();
         break;
       case MessagingTabFilter.videos:
-        result = allSocial.where((a) => a.type == AssetType.video && !_isSentMedia(a, albumMap)).toList();
+        result = allSocial.where((a) => a.type == AssetType.video).toList();
         break;
       case MessagingTabFilter.photos:
-        result = allSocial.where((a) => a.type == AssetType.image && !_isSentMedia(a, albumMap)).toList();
+        result = allSocial.where((a) => a.type == AssetType.image).toList();
         break;
       case MessagingTabFilter.all:
         result = List.from(allSocial);
@@ -115,26 +115,38 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
     try {
+      final canTrash = await MediaService.supportsTrash();
+      if (!mounted) return;
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
+                  color:
+                      (isDark
+                              ? AppColors.trashRedDark
+                              : AppColors.trashRedLight)
+                          .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.delete_sweep_rounded,
-                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  color: isDark
+                      ? AppColors.trashRedDark
+                      : AppColors.trashRedLight,
                   size: 24,
                 ),
               ),
@@ -148,24 +160,41 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             ],
           ),
           content: Text(
-            '${idsToDelete.length} messaging file(s) will be permanently deleted.',
+            '${idsToDelete.length} messaging file(s) will be ${canTrash ? 'moved to Trash' : 'permanently deleted'}.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: AppTypography.meta13(color: mutedColor)),
+              child: Text(
+                'Cancel',
+                style: AppTypography.meta13(color: mutedColor),
+              ),
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                backgroundColor: isDark
+                    ? AppColors.trashRedDark
+                    : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
-              label: Text('Delete Permanently', style: AppTypography.button15(color: Colors.white)),
+              icon: const Icon(
+                Icons.delete_sweep_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
+              label: Text(
+                canTrash ? 'Move to Trash' : 'Delete Permanently',
+                style: AppTypography.button15(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -173,7 +202,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
 
       if (confirm == true && mounted) {
         HapticFeedback.mediumImpact();
-        final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+        final List<String> result = await MediaService.removeAssetsWithIds(
+          idsToDelete,
+        );
 
         if (mounted && result.isNotEmpty) {
           final count = result.length;
@@ -184,17 +215,11 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             _selectedIds.removeWhere((id) => result.contains(id));
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.ink,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              content: Text(
-                'Successfully deleted $count messaging files',
-                style: AppTypography.body15(color: Colors.white),
-              ),
-            ),
+          await showOperationResult(
+            context,
+            message: 'Removed $count messaging files from the gallery.',
           );
+          if (!mounted) return;
         }
       }
     } catch (e) {
@@ -241,12 +266,14 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ScanProvider>();
-    final allSocial = provider.categories['Social & WhatsApp'] ?? [];
+    final allSocial = provider.socialMediaAssets;
     final albumMap = provider.assetAlbumMap;
     final sizes = provider.assetSizes;
 
     final displayedAssets = _filterAssets(allSocial, albumMap);
-    final sentAssets = allSocial.where((a) => _isSentMedia(a, albumMap)).toList();
+    final sentAssets = allSocial
+        .where((a) => _isSentMedia(a, albumMap))
+        .toList();
 
     final totalSocialBytes = _calculateBytes(allSocial, sizes);
     final totalSentBytes = _calculateBytes(sentAssets, sizes);
@@ -260,13 +287,17 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
     final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
     final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
     final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
 
     final displayedIds = displayedAssets.map((a) => a.id).toSet();
-    final bool allCurrentSelected = displayedIds.isNotEmpty && displayedIds.every((id) => _selectedIds.contains(id));
+    final bool allCurrentSelected =
+        displayedIds.isNotEmpty &&
+        displayedIds.every((id) => _selectedIds.contains(id));
 
     return Scaffold(
       backgroundColor: bg,
@@ -287,7 +318,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             ),
             Text(
               '${allSocial.length} items | ${AppUtils.formatBytes(totalSocialBytes)}',
-              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+              style: AppTypography.caption11(
+                color: mutedColor,
+                letterSpacing: 0,
+              ),
             ),
           ],
         ),
@@ -296,7 +330,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             icon: Icon(Icons.sort_rounded, color: textColor),
             tooltip: 'Sort items',
             color: cardBg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             initialValue: _sortOption,
             onSelected: (val) {
               HapticFeedback.selectionClick();
@@ -305,11 +341,17 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: 'size',
-                child: Text('Largest size first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Largest size first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
               PopupMenuItem(
                 value: 'date',
-                child: Text('Newest date first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Newest date first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
             ],
           ),
@@ -319,8 +361,13 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
               child: TextButton(
                 style: TextButton.styleFrom(
                   backgroundColor: lilacChip,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   HapticFeedback.selectionClick();
@@ -334,7 +381,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                 },
                 child: Text(
                   allCurrentSelected ? 'Deselect' : 'Select all',
-                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                  style: AppTypography.meta13(
+                    color: lilacChipText,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -359,14 +409,20 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.lilac,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             'QUICK CLEAN',
-                            style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                            style: AppTypography.caption11(
+                              color: AppColors.ink,
+                              letterSpacing: 0.8,
+                            ),
                           ),
                         ),
                         if (sentAssets.isNotEmpty)
@@ -374,8 +430,13 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.gold,
                               foregroundColor: AppColors.ink,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             onPressed: () {
                               HapticFeedback.selectionClick();
@@ -389,7 +450,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                             },
                             child: Text(
                               'Clean sent copies',
-                              style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 13),
+                              style: AppTypography.button15(
+                                color: AppColors.ink,
+                              ).copyWith(fontSize: 13),
                             ),
                           ),
                       ],
@@ -402,7 +465,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                     const Gap(6),
                     Text(
                       '${sentAssets.length} hidden sent copies from chats you already delivered',
-                      style: AppTypography.body15(color: AppColors.lilac, fontWeight: FontWeight.w500),
+                      style: AppTypography.body15(
+                        color: AppColors.lilac,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -427,7 +493,10 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                           setState(() => _currentFilter = tab);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: _currentFilter == tab
                                 ? AppColors.violet
@@ -441,7 +510,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                               color: _currentFilter == tab
                                   ? Colors.white
                                   : textColor,
-                              fontWeight: _currentFilter == tab ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight: _currentFilter == tab
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                           ),
                         ),
@@ -461,11 +532,19 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                 children: [
                   Text(
                     '${displayedAssets.length} ${_currentFilter.label.toLowerCase()} found',
-                    style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
+                    style: AppTypography.meta13(
+                      color: mutedColor,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
-                    AppUtils.formatBytes(_calculateBytes(displayedAssets, sizes)),
-                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                    AppUtils.formatBytes(
+                      _calculateBytes(displayedAssets, sizes),
+                    ),
+                    style: AppTypography.caption11(
+                      color: mutedColor,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ],
               ),
@@ -488,7 +567,11 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                           color: AppColors.gold.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.forum_outlined, size: 48, color: AppColors.gold),
+                        child: const Icon(
+                          Icons.forum_outlined,
+                          size: 48,
+                          color: AppColors.gold,
+                        ),
                       ),
                       const Gap(16),
                       Text(
@@ -508,7 +591,12 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
             )
           else
             SliverPadding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 120 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                120 + MediaQuery.paddingOf(context).bottom,
+              ),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -516,121 +604,135 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                   mainAxisSpacing: 8,
                   childAspectRatio: 0.8,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, index) {
-                    final asset = displayedAssets[index];
-                    final isSelected = _selectedIds.contains(asset.id);
-                    final size = sizes[asset.id] ?? 0;
-                    final isSent = _isSentMedia(asset, albumMap);
-                    final isVideo = asset.type == AssetType.video;
-                    final dateStr = DateFormat('MMM d').format(asset.createDateTime);
+                delegate: SliverChildBuilderDelegate((ctx, index) {
+                  final asset = displayedAssets[index];
+                  final isSelected = _selectedIds.contains(asset.id);
+                  final size = sizes[asset.id] ?? 0;
+                  final isSent = _isSentMedia(asset, albumMap);
+                  final isVideo = asset.type == AssetType.video;
+                  final dateStr = DateFormat(
+                    'MMM d',
+                  ).format(asset.createDateTime);
 
-                    return GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          if (isSelected) {
-                            _selectedIds.remove(asset.id);
-                          } else {
-                            _selectedIds.add(asset.id);
-                          }
-                        });
-                      },
-                      onLongPress: () => _inspectAsset(asset),
-                      child: Stack(
-                        children: [
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        if (isSelected) {
+                          _selectedIds.remove(asset.id);
+                        } else {
+                          _selectedIds.add(asset.id);
+                        }
+                      });
+                    },
+                    onLongPress: () => _inspectAsset(asset),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: AssetEntityImage(
+                              asset,
+                              isOriginal: false,
+                              thumbnailSize: const ThumbnailSize.square(300),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+
+                        if (isSelected)
                           Positioned.fill(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: AssetEntityImage(
-                                asset,
-                                isOriginal: false,
-                                thumbnailSize: const ThumbnailSize.square(300),
-                                fit: BoxFit.cover,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: trashRed, width: 2.5),
+                                borderRadius: BorderRadius.circular(16),
+                                color: trashRed.withValues(alpha: 0.32),
                               ),
                             ),
                           ),
 
-                          if (isSelected)
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: trashRed, width: 2.5),
-                                  borderRadius: BorderRadius.circular(16),
-                                  color: trashRed.withValues(alpha: 0.32),
-                                ),
-                              ),
-                            ),
-
-                          // Top-Left Sent / Video Pill
-                          if (isSent || isVideo)
-                            Positioned(
-                              top: 6,
-                              left: 6,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  isSent ? 'Sent' : (isVideo ? 'Video' : ''),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                          // Checkbox Top-Right
+                        // Top-Left Sent / Video Pill
+                        if (isSent || isVideo)
                           Positioned(
                             top: 6,
-                            right: 6,
+                            left: 6,
                             child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
                               ),
-                              child: Icon(
-                                isSelected ? Icons.delete_outline_rounded : Icons.circle,
-                                color: isSelected ? Colors.white : Colors.transparent,
-                                size: 12,
-                              ),
-                            ),
-                          ),
-
-                          // Bottom Pill (Size & Date)
-                          Positioned(
-                            bottom: 5,
-                            left: 5,
-                            right: 5,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.65),
+                                color: Colors.black.withValues(alpha: 0.7),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '$dateStr | ${AppUtils.formatBytes(size)}',
-                                textAlign: TextAlign.center,
+                                isSent ? 'Sent' : (isVideo ? 'Video' : ''),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                  childCount: displayedAssets.length,
-                ),
+
+                        // Checkbox Top-Right
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? trashRed
+                                  : Colors.black.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Icon(
+                              isSelected
+                                  ? Icons.delete_outline_rounded
+                                  : Icons.circle,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              size: 12,
+                            ),
+                          ),
+                        ),
+
+                        // Bottom Pill (Size & Date)
+                        Positioned(
+                          bottom: 5,
+                          left: 5,
+                          right: 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$dateStr | ${AppUtils.formatBytes(size)}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }, childCount: displayedAssets.length),
               ),
             ),
         ],
@@ -640,10 +742,17 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                16 + MediaQuery.paddingOf(context).bottom,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.ink2 : AppColors.ink,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Row(
                 children: [
@@ -654,7 +763,9 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                       children: [
                         Text(
                           '${_selectedIds.length} selected',
-                          style: AppTypography.subheading17(color: Colors.white),
+                          style: AppTypography.subheading17(
+                            color: Colors.white,
+                          ),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedBytes)}',
@@ -668,11 +779,22 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.ink,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                    onPressed: _isProcessing ? null : () => _deleteSelected(_selectedIds.toList()),
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _deleteSelected(_selectedIds.toList()),
+                    icon: const Icon(
+                      Icons.delete_sweep_rounded,
+                      size: 20,
+                      color: AppColors.ink,
+                    ),
                     label: Text(
                       'Delete Selected',
                       style: AppTypography.button15(color: AppColors.ink),

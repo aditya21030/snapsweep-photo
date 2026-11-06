@@ -47,7 +47,9 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.ink : AppColors.lavender;
     final primaryTextColor = isDark ? Colors.white : AppColors.ink;
-    final secondaryTextColor = isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A);
+    final secondaryTextColor = isDark
+        ? const Color(0xFFA49EBA)
+        : const Color(0xFF5F567A);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -70,7 +72,9 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
                       Positioned.fill(
                         child: CustomPaint(
                           painter: _ViewfinderCornersPainter(
-                            color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                            color: isDark
+                                ? const Color(0xFF281357)
+                                : AppColors.lilac,
                           ),
                         ),
                       ),
@@ -84,7 +88,9 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
                           borderRadius: BorderRadius.circular(36),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.violet.withValues(alpha: isDark ? 0.35 : 0.18),
+                              color: AppColors.violet.withValues(
+                                alpha: isDark ? 0.35 : 0.18,
+                              ),
                               blurRadius: 28,
                               offset: const Offset(0, 10),
                             ),
@@ -115,7 +121,9 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
                                   borderRadius: BorderRadius.circular(14),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.1),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       blurRadius: 8,
                                     ),
                                   ],
@@ -164,7 +172,9 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
                                       borderRadius: BorderRadius.circular(2),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppColors.gold.withValues(alpha: 0.8),
+                                          color: AppColors.gold.withValues(
+                                            alpha: 0.8,
+                                          ),
                                           blurRadius: 8,
                                           spreadRadius: 2,
                                         ),
@@ -251,7 +261,7 @@ class _SweepingSplashScreenState extends State<SweepingSplashScreen>
                   ),
                   const Gap(6),
                   Text(
-                    "100% on-device. No uploads.",
+                    'Gallery analysis stays on-device.',
                     style: AppTypography.meta13(
                       color: secondaryTextColor,
                       fontWeight: FontWeight.w500,
@@ -290,7 +300,10 @@ class _ViewfinderCornersPainter extends CustomPainter {
     final pathTL = Path()
       ..moveTo(0, cornerLength)
       ..lineTo(0, radius)
-      ..arcToPoint(const Offset(radius, 0), radius: const Radius.circular(radius))
+      ..arcToPoint(
+        const Offset(radius, 0),
+        radius: const Radius.circular(radius),
+      )
       ..lineTo(cornerLength, 0);
     canvas.drawPath(pathTL, paint);
 
@@ -298,7 +311,10 @@ class _ViewfinderCornersPainter extends CustomPainter {
     final pathTR = Path()
       ..moveTo(size.width - cornerLength, 0)
       ..lineTo(size.width - radius, 0)
-      ..arcToPoint(Offset(size.width, radius), radius: const Radius.circular(radius))
+      ..arcToPoint(
+        Offset(size.width, radius),
+        radius: const Radius.circular(radius),
+      )
       ..lineTo(size.width, cornerLength);
     canvas.drawPath(pathTR, paint);
 
@@ -306,7 +322,10 @@ class _ViewfinderCornersPainter extends CustomPainter {
     final pathBL = Path()
       ..moveTo(0, size.height - cornerLength)
       ..lineTo(0, size.height - radius)
-      ..arcToPoint(Offset(radius, size.height), radius: const Radius.circular(radius))
+      ..arcToPoint(
+        Offset(radius, size.height),
+        radius: const Radius.circular(radius),
+      )
       ..lineTo(cornerLength, size.height);
     canvas.drawPath(pathBL, paint);
 
@@ -314,7 +333,10 @@ class _ViewfinderCornersPainter extends CustomPainter {
     final pathBR = Path()
       ..moveTo(size.width - cornerLength, size.height)
       ..lineTo(size.width - radius, size.height)
-      ..arcToPoint(Offset(size.width, size.height - radius), radius: const Radius.circular(radius))
+      ..arcToPoint(
+        Offset(size.width, size.height - radius),
+        radius: const Radius.circular(radius),
+      )
       ..lineTo(size.width, size.height - cornerLength);
     canvas.drawPath(pathBR, paint);
   }

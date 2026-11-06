@@ -7,11 +7,7 @@ class LegalScreen extends StatelessWidget {
   final String title;
   final String content;
 
-  const LegalScreen({
-    super.key,
-    required this.title,
-    required this.content,
-  });
+  const LegalScreen({super.key, required this.title, required this.content});
 
   @override
   Widget build(BuildContext context) {
@@ -19,10 +15,14 @@ class LegalScreen extends StatelessWidget {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
-    // Sanitize content to ensure absolutely NO bullet dot character
-    final sanitizedContent = content.replaceAll('\u2022', '-');
+    final sanitizedContent = content
+        .replaceAll('\u2022', '-')
+        .replaceAll(RegExp(r'^#{1,2}\s*', multiLine: true), '')
+        .replaceAll('**', '');
 
     return Scaffold(
       backgroundColor: bg,
@@ -34,10 +34,7 @@ class LegalScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back_rounded, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          title,
-          style: AppTypography.heading20(color: textColor),
-        ),
+        title: Text(title, style: AppTypography.heading20(color: textColor)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -62,12 +59,16 @@ class LegalScreen extends StatelessWidget {
                             color: AppColors.violet.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.shield_rounded, color: AppColors.violet, size: 20),
+                          child: const Icon(
+                            Icons.shield_rounded,
+                            color: AppColors.violet,
+                            size: 20,
+                          ),
                         ),
                         const Gap(12),
                         Expanded(
                           child: Text(
-                            '100% On-Device Privacy',
+                            'On-device media analysis',
                             style: AppTypography.subheading17(color: textColor),
                           ),
                         ),
@@ -75,7 +76,7 @@ class LegalScreen extends StatelessWidget {
                     ),
                     const Gap(14),
                     Text(
-                      'All visual analysis, duplicate detection, and file management are processed strictly locally on your Android device. No photos, videos, or metadata ever leave your phone.',
+                      'Gallery analysis happens on your device. Ads and Google Play Billing use online services; their data practices are described below.',
                       style: AppTypography.body15(color: mutedColor),
                     ),
                   ],

@@ -1,3 +1,5 @@
+import 'package:go_router/go_router.dart';
+import '../../../core/services/widget_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/scan_provider.dart';
@@ -16,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final Set<int> _visitedTabs = {0};
 
   @override
   void initState() {
@@ -25,7 +28,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // Small delay to allow UI to settle/animate before heavy lifting
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) {
-        context.read<ScanProvider>().scan();
+        context.read<ScanProvider>().openGallery();
+        final pending = WidgetService.pendingWidgetRoute;
+        if (pending != null) {
+          WidgetService.pendingWidgetRoute = null;
+          context.push(pending);
+        }
       }
     });
   }
@@ -44,12 +52,21 @@ class _HomeScreenState extends State<HomeScreen> {
       extendBody: true, // Important for floating effect
       body: IndexedStack(
         index: _currentIndex,
-        children: screens,
+        children: [
+          for (var index = 0; index < screens.length; index++)
+            _visitedTabs.contains(index)
+                ? TickerMode(
+                    enabled: index == _currentIndex,
+                    child: screens[index],
+                  )
+                : const SizedBox.shrink(),
+        ],
       ),
       bottomNavigationBar: FloatingNavBar(
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
+            _visitedTabs.add(index);
             _currentIndex = index;
           });
         },

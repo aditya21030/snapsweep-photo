@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'sweeping_splash_screen.dart';
-import '../../../core/services/widget_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,13 +44,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (mounted) {
       if (hasPermission) {
         context.go('/home');
-        final pending = WidgetService.pendingWidgetRoute;
-        if (pending != null) {
-          WidgetService.pendingWidgetRoute = null;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) context.push(pending);
-          });
-        }
       } else {
         context.go('/permission');
       }

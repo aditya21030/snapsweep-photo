@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +9,12 @@ import '../../providers/scan_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../common/fullscreen_photo_viewer.dart';
+
+enum _MatchFilter { all, exact, similar }
+
+typedef _ReviewGroup = ({bool exact, List<AssetEntity> assets});
 
 class DuplicatePreviewScreen extends StatefulWidget {
   final bool isSimilar;
@@ -21,12 +27,12 @@ class DuplicatePreviewScreen extends StatefulWidget {
 class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
-  late bool _showSimilar;
+  late _MatchFilter _filter;
 
   @override
   void initState() {
     super.initState();
-    _showSimilar = widget.isSimilar;
+    _filter = widget.isSimilar ? _MatchFilter.similar : _MatchFilter.all;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -34,24 +40,36 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
     });
   }
 
+  List<_ReviewGroup> _reviewGroups(ScanProvider provider) => [
+    if (_filter != _MatchFilter.similar)
+      for (final assets in provider.duplicateGroups)
+        (exact: true, assets: assets),
+    if (_filter != _MatchFilter.exact)
+      for (final assets in provider.similarGroups)
+        (exact: false, assets: assets),
+  ];
+
   void _autoSelectCopies() {
     final provider = context.read<ScanProvider>();
-    final groups = _showSimilar ? provider.similarGroups : provider.duplicateGroups;
-
     _selectedIds.clear();
-    for (var group in groups) {
-      if (group.length > 1) {
-        // Keep first (best), select remaining duplicates
-        for (int i = 1; i < group.length; i++) {
-          _selectedIds.add(group[i].id);
-        }
-      }
+    for (final group in _reviewGroups(provider).where((group) => group.exact)) {
+      _selectedIds.addAll(group.assets.skip(1).map((asset) => asset.id));
     }
     setState(() {});
   }
 
+  void _setFilter(_MatchFilter filter) {
+    if (_filter == filter) return;
+    _filter = filter;
+    _autoSelectCopies();
+  }
+
   Future<void> _deleteSelected() async {
-    if (_isProcessing || _selectedIds.isEmpty) return;
+    if (_isProcessing ||
+        _selectedIds.isEmpty ||
+        context.read<ScanProvider>().isLoading) {
+      return;
+    }
     _isProcessing = true;
 
     try {
@@ -61,6 +79,8 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         freedBytes += provider.assetSizes[id] ?? 0;
       }
       final freedSizeStr = AppUtils.formatBytes(freedBytes);
+      final canTrash = await MediaService.supportsTrash();
+      if (!mounted) return;
 
       final bool? confirm = await showDialog<bool>(
         context: context,
@@ -70,7 +90,9 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
 
           return Dialog(
             backgroundColor: dialogBg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -99,10 +121,14 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                   ),
                   const Gap(10),
                   Text(
-                    "That frees $freedSizeStr. Selected items will be permanently deleted.",
+                    canTrash
+                        ? 'Selected items will be moved to Trash. $freedSizeStr can be reclaimed after Trash is emptied.'
+                        : 'Selected items will be permanently deleted, freeing $freedSizeStr.',
                     textAlign: TextAlign.center,
                     style: AppTypography.body15(
-                      color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                      color: isDark
+                          ? const Color(0xFFA49EBA)
+                          : const Color(0xFF5F567A),
                       height: 1.4,
                     ),
                   ),
@@ -121,7 +147,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                       ),
                       onPressed: () => Navigator.pop(context, true),
                       child: Text(
-                        "Delete Permanently",
+                        canTrash ? 'Move to Trash' : 'Delete Permanently',
                         style: AppTypography.button15(color: Colors.white),
                       ),
                     ),
@@ -140,7 +166,9 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                       child: Text(
                         "Cancel",
                         style: AppTypography.button15(
-                          color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                          color: isDark
+                              ? const Color(0xFFA49EBA)
+                              : const Color(0xFF5F567A),
                         ),
                       ),
                     ),
@@ -156,23 +184,20 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         HapticFeedback.mediumImpact();
         List<String> idsToDelete = _selectedIds.toList();
         try {
-          final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+          final List<String> result = await MediaService.removeAssetsWithIds(
+            idsToDelete,
+          );
 
-          if (mounted && result.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: AppColors.ink,
-                content: Text(
-                  'Successfully deleted ${result.length} photos ($freedSizeStr freed)',
-                  style: AppTypography.body15(color: Colors.white),
-                ),
-              ),
-            );
-
-            await context.read<ScanProvider>().removeAssets(result);
+          if (result.isNotEmpty) {
+            await provider.removeAssets(result);
+            if (!mounted) return;
             setState(() {
               _selectedIds.removeWhere((id) => result.contains(id));
             });
+            await showOperationResult(
+              context,
+              message: 'Removed ${result.length} photos from the gallery.',
+            );
           }
         } catch (e) {
           debugPrint("Delete error: $e");
@@ -188,7 +213,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
     setState(() {
       _selectedIds.clear();
       for (var group in groups) {
-        for (var asset in group) {
+        for (var asset in group.skip(1)) {
           _selectedIds.add(asset.id);
         }
       }
@@ -224,12 +249,19 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryTextColor = isDark ? Colors.white : AppColors.ink;
-    final secondaryTextColor =
-        isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A);
+    final secondaryTextColor = isDark
+        ? const Color(0xFFA49EBA)
+        : const Color(0xFF5F567A);
 
     return Consumer<ScanProvider>(
       builder: (context, provider, child) {
-        final groups = _showSimilar ? provider.similarGroups : provider.duplicateGroups;
+        final entries = _reviewGroups(provider);
+        final groups = entries.map((group) => group.assets).toList();
+        final visibleIds = groups
+            .expand((group) => group)
+            .map((asset) => asset.id)
+            .toSet();
+        _selectedIds.retainAll(visibleIds);
         final totalGroups = groups.length;
         final totalCopies = groups.fold<int>(0, (sum, g) => sum + g.length);
 
@@ -239,7 +271,14 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         }
         final selectedSizeStr = AppUtils.formatBytes(totalSelectedBytes);
 
-        final totalReclaimableBytes = _showSimilar ? provider.similarSize : provider.duplicateSize;
+        final reclaimableIds = groups
+            .expand((group) => group.skip(1))
+            .map((asset) => asset.id)
+            .toSet();
+        final totalReclaimableBytes = reclaimableIds.fold<int>(
+          0,
+          (total, id) => total + (provider.assetSizes[id] ?? 0),
+        );
         final reclaimableSizeStr = AppUtils.formatBytes(totalReclaimableBytes);
 
         return Scaffold(
@@ -254,19 +293,25 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
-              _showSimilar ? "Duplicates and similar" : "Exact duplicates",
+              "Duplicates & similar",
               style: AppTypography.heading20(color: primaryTextColor),
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  final allSelected = groups.every((g) => g.every((a) => _selectedIds.contains(a.id)));
-                  if (allSelected) {
-                    _deselectAll();
-                  } else {
-                    _selectAll(groups);
-                  }
-                },
+                onPressed: groups.isEmpty || provider.isLoading
+                    ? null
+                    : () {
+                        final allSelected = groups.every(
+                          (g) => g
+                              .skip(1)
+                              .every((a) => _selectedIds.contains(a.id)),
+                        );
+                        if (allSelected) {
+                          _deselectAll();
+                        } else {
+                          _selectAll(groups);
+                        }
+                      },
                 child: Text(
                   "All",
                   style: AppTypography.button15(color: AppColors.violet),
@@ -277,279 +322,319 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
           ),
           body: Stack(
             children: [
-              ListView(
+              ListView.builder(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
-                children: [
-                  // Segmented Switcher (Exact | Similar)
-                  Container(
-                    height: 44,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.ink2 : AppColors.lilac.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Row(
+                cacheExtent: 350,
+                itemCount: groups.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Column(
                       children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              if (_showSimilar) {
-                                setState(() {
-                                  _showSimilar = false;
-                                  _autoSelectCopies();
-                                });
-                              }
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: !_showSimilar ? AppColors.violet : Colors.transparent,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  "Exact ${provider.duplicateGroups.length}",
-                                  style: AppTypography.meta13(
-                                    color: !_showSimilar ? Colors.white : secondaryTextColor,
-                                    fontWeight: !_showSimilar ? FontWeight.w700 : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              if (!_showSimilar) {
-                                setState(() {
-                                  _showSimilar = true;
-                                  _autoSelectCopies();
-                                });
-                              }
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: _showSimilar ? AppColors.violet : Colors.transparent,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  "Similar ${provider.similarGroups.length}",
-                                  style: AppTypography.meta13(
-                                    color: _showSimilar ? Colors.white : secondaryTextColor,
-                                    fontWeight: _showSimilar ? FontWeight.w700 : FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const Gap(18),
-
-                  // Storage Summary Card (Page 8 / 38)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            reclaimableSizeStr,
-                            style: AppTypography.display48(color: AppColors.violet),
-                          ),
-                          const Gap(2),
-                          Text(
-                            "$totalGroups groups | $totalCopies copies",
-                            style: AppTypography.body15(color: secondaryTextColor),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF0F0426) : AppColors.ink,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          "SAFE PICK",
-                          style: AppTypography.caption11(color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const Gap(20),
-
-                  // Groups List
-                  if (groups.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 60),
-                      child: Center(
-                        child: Text(
-                          "No duplicate copies found in this scan area.",
-                          style: AppTypography.body15(color: secondaryTextColor),
-                        ),
-                      ),
-                    )
-                  else
-                    ...List.generate(groups.length, (groupIndex) {
-                      final group = groups[groupIndex];
-                      final groupSelectedCount = group.where((a) => _selectedIds.contains(a.id)).length;
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.ink2 : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : AppColors.lilac2.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            // Group Header
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            ChoiceChip(
+                              label: Text('All ${provider.reviewGroupCount}'),
+                              selected: _filter == _MatchFilter.all,
+                              onSelected: (_) => _setFilter(_MatchFilter.all),
+                            ),
+                            ChoiceChip(
+                              label: Text(
+                                'Exact ${provider.duplicateGroups.length}',
+                              ),
+                              selected: _filter == _MatchFilter.exact,
+                              onSelected: (_) => _setFilter(_MatchFilter.exact),
+                            ),
+                            ChoiceChip(
+                              label: Text(
+                                'Similar ${provider.similarGroups.length}',
+                              ),
+                              selected: _filter == _MatchFilter.similar,
+                              onSelected: (_) =>
+                                  _setFilter(_MatchFilter.similar),
+                            ),
+                          ],
+                        ),
+                        if (provider.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: Column(
+                              children: [
+                                LinearProgressIndicator(),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Updating matches. Saved groups stay visible until the new results are ready.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        const Gap(18),
+
+                        // Storage Summary Card (Page 8 / 38)
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.end,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _showSimilar
-                                      ? "GROUP ${groupIndex + 1} | ${group.length} PHOTOS"
-                                      : "GROUP ${groupIndex + 1} | ${group.length} COPIES",
-                                  style: AppTypography.caption11(
-                                    color: secondaryTextColor,
-                                    letterSpacing: 1.0,
+                                  reclaimableSizeStr,
+                                  style: AppTypography.display48(
+                                    color: AppColors.violet,
                                   ),
                                 ),
+                                const Gap(2),
                                 Text(
-                                  "$groupSelectedCount selected",
-                                  style: AppTypography.meta13(
-                                    color: AppColors.violet,
-                                    fontWeight: FontWeight.w700,
+                                  "$totalGroups groups | $totalCopies photos",
+                                  style: AppTypography.body15(
+                                    color: secondaryTextColor,
                                   ),
                                 ),
                               ],
                             ),
-
-                            const Gap(12),
-
-                            // Photos Row
-                            SizedBox(
-                              height: 110,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: group.length,
-                                separatorBuilder: (_, _) => const Gap(10),
-                                itemBuilder: (context, photoIndex) {
-                                  final asset = group[photoIndex];
-                                  final isKeep = photoIndex == 0;
-                                  final isSelected = _selectedIds.contains(asset.id);
-
-                                  return GestureDetector(
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedIds.remove(asset.id);
-                                        } else {
-                                          _selectedIds.add(asset.id);
-                                        }
-                                      });
-                                    },
-                                    onLongPress: () => _openInspector(asset),
-                                    child: Stack(
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(16),
-                                          child: Container(
-                                            width: 100,
-                                            height: 110,
-                                            decoration: BoxDecoration(
-                                              color: isDark
-                                                  ? const Color(0xFF281357)
-                                                  : AppColors.lilac,
-                                            ),
-                                            child: AssetEntityImage(
-                                              asset,
-                                              width: 100,
-                                              height: 110,
-                                              fit: BoxFit.cover,
-                                              thumbnailSize: const ThumbnailSize.square(200),
-                                            ),
-                                          ),
-                                        ),
-
-                                        // Badge: KEEP or Selection Check
-                                        Positioned(
-                                          top: 8,
-                                          left: 8,
-                                          child: isKeep
-                                              ? Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.gold,
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  child: Text(
-                                                    "KEEP",
-                                                    style: AppTypography.caption11(
-                                                      color: AppColors.ink,
-                                                      fontWeight: FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                )
-                                              : Container(
-                                                  width: 24,
-                                                  height: 24,
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? AppColors.violet
-                                                        : Colors.black.withValues(alpha: 0.4),
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(
-                                                      color: Colors.white,
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                  child: isSelected
-                                                      ? const Icon(
-                                                          Icons.check,
-                                                          size: 14,
-                                                          color: Colors.white,
-                                                        )
-                                                      : null,
-                                                ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
                               ),
-                            ),
-
-                            const Gap(10),
-
-                            // Group Footer Metadata
-                            Text(
-                              "${AppUtils.formatBytes(provider.assetSizes[group.first.id] ?? 0)} each | ${group.first.width} x ${group.first.height}",
-                              style: AppTypography.meta13(color: secondaryTextColor),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF0F0426)
+                                    : AppColors.ink,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _filter == _MatchFilter.exact
+                                    ? "EXACT COPIES"
+                                    : "REVIEW MATCHES",
+                                style: AppTypography.caption11(
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    }),
-                ],
+
+                        const Gap(20),
+
+                        // Groups List
+                        if (groups.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 60),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  provider.scanErrorMessage ??
+                                      (provider.isLoading
+                                          ? 'Analysis is still running.'
+                                          : _filter == _MatchFilter.all
+                                          ? 'No matching copies in ${provider.scanScope.label}.'
+                                          : _filter == _MatchFilter.exact
+                                          ? 'No exact duplicates in this view.'
+                                          : 'No similar photos in this view.'),
+                                  style: AppTypography.body15(
+                                    color: secondaryTextColor,
+                                  ),
+                                ),
+                                if (_filter != _MatchFilter.all &&
+                                    provider.reviewGroupCount > 0)
+                                  TextButton(
+                                    onPressed: () =>
+                                        _setFilter(_MatchFilter.all),
+                                    child: const Text('Show all matches'),
+                                  ),
+                                if (provider.scanScope != ScanScope.fullGallery)
+                                  TextButton(
+                                    onPressed: () => provider.setScanScope(
+                                      ScanScope.fullGallery,
+                                    ),
+                                    child: const Text('Show full gallery'),
+                                  ),
+                                if (!provider.isLoading &&
+                                    provider.reviewGroupCount == 0)
+                                  TextButton(
+                                    onPressed: provider.recheckMatches,
+                                    child: const Text('Recheck matches'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  }
+                  final groupIndex = index - 1;
+
+                  final group = groups[groupIndex];
+                  final isExactGroup = entries[groupIndex].exact;
+                  final groupSelectedCount = group
+                      .where((a) => _selectedIds.contains(a.id))
+                      .length;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.ink2 : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : AppColors.lilac2.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Group Header
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 6,
+                          children: [
+                            Text(
+                              isExactGroup
+                                  ? "EXACT GROUP ${groupIndex + 1} | ${group.length} COPIES"
+                                  : "SIMILAR GROUP ${groupIndex + 1} | ${group.length} PHOTOS",
+                              style: AppTypography.caption11(
+                                color: secondaryTextColor,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            Text(
+                              "$groupSelectedCount selected",
+                              style: AppTypography.meta13(
+                                color: AppColors.violet,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const Gap(12),
+
+                        // Photos Row
+                        SizedBox(
+                          height: 110,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: group.length,
+                            separatorBuilder: (_, _) => const Gap(10),
+                            itemBuilder: (context, photoIndex) {
+                              final asset = group[photoIndex];
+                              final isKeep = photoIndex == 0;
+                              final isSelected = _selectedIds.contains(
+                                asset.id,
+                              );
+
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedIds.remove(asset.id);
+                                    } else {
+                                      _selectedIds.add(asset.id);
+                                    }
+                                  });
+                                },
+                                onLongPress: () => _openInspector(asset),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Container(
+                                        width: 100,
+                                        height: 110,
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? const Color(0xFF281357)
+                                              : AppColors.lilac,
+                                        ),
+                                        child: AssetEntityImage(
+                                          asset,
+                                          isOriginal: false,
+                                          width: 100,
+                                          height: 110,
+                                          fit: BoxFit.cover,
+                                          thumbnailSize:
+                                              const ThumbnailSize.square(200),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Badge: KEEP or Selection Check
+                                    Positioned(
+                                      top: 8,
+                                      left: 8,
+                                      child: isKeep
+                                          ? Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.gold,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                "KEEP",
+                                                style: AppTypography.caption11(
+                                                  color: AppColors.ink,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              width: 24,
+                                              height: 24,
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? AppColors.violet
+                                                    : Colors.black.withValues(
+                                                        alpha: 0.4,
+                                                      ),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.white,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: isSelected
+                                                  ? const Icon(
+                                                      Icons.check,
+                                                      size: 14,
+                                                      color: Colors.white,
+                                                    )
+                                                  : null,
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+
+                        const Gap(10),
+
+                        // Group Footer Metadata
+                        Text(
+                          "${AppUtils.formatBytes(provider.assetSizes[group.first.id] ?? 0)} each | ${group.first.width} x ${group.first.height}",
+                          style: AppTypography.meta13(
+                            color: secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
 
               // Sticky Bottom Action Bar (Page 8 / 38)
@@ -562,7 +647,10 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                     16,
                     16 + MediaQuery.paddingOf(context).bottom,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.ink2 : AppColors.ink,
                     borderRadius: BorderRadius.circular(24),
@@ -586,8 +674,9 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                               "${_selectedIds.length} selected",
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTypography.heading20(color: Colors.white)
-                                  .copyWith(fontSize: 16),
+                              style: AppTypography.heading20(
+                                color: Colors.white,
+                              ).copyWith(fontSize: 16),
                             ),
                             const Gap(2),
                             Row(
@@ -600,7 +689,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                                 const Gap(4),
                                 Expanded(
                                   child: Text(
-                                    "$selectedSizeStr | 30-day Trash",
+                                    '$selectedSizeStr selected for review',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTypography.meta13(
@@ -615,7 +704,10 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
                       ),
                       const Gap(10),
                       ElevatedButton.icon(
-                        onPressed: _selectedIds.isEmpty || _isProcessing
+                        onPressed:
+                            _selectedIds.isEmpty ||
+                                _isProcessing ||
+                                provider.isLoading
                             ? null
                             : _deleteSelected,
                         style: ElevatedButton.styleFrom(

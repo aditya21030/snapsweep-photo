@@ -31,9 +31,11 @@ class _PermissionScreenState extends State<PermissionScreen> {
       final androidInfo = await DeviceInfoPlugin().androidInfo;
       if (androidInfo.version.sdkInt >= 33) {
         final statuses = await [Permission.photos, Permission.videos].request();
-        final photosOk = statuses[Permission.photos]?.isGranted == true ||
+        final photosOk =
+            statuses[Permission.photos]?.isGranted == true ||
             statuses[Permission.photos]?.isLimited == true;
-        final videosOk = statuses[Permission.videos]?.isGranted == true ||
+        final videosOk =
+            statuses[Permission.videos]?.isGranted == true ||
             statuses[Permission.videos]?.isLimited == true;
         granted = photosOk || videosOk;
       } else {
@@ -45,6 +47,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
       granted = status.isGranted || status.isLimited;
     }
 
+    if (!mounted) return;
     setState(() {
       _isRequesting = false;
     });
@@ -78,8 +81,9 @@ class _PermissionScreenState extends State<PermissionScreen> {
     final bgColor = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final primaryTextColor = isDark ? Colors.white : AppColors.ink;
-    final secondaryTextColor =
-        isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A);
+    final secondaryTextColor = isDark
+        ? const Color(0xFFA49EBA)
+        : const Color(0xFF5F567A);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -270,8 +274,9 @@ class _PermissionScreenState extends State<PermissionScreen> {
                         )
                       : Text(
                           "Allow access",
-                          style: AppTypography.button15(color: Colors.white)
-                              .copyWith(fontSize: 16),
+                          style: AppTypography.button15(
+                            color: Colors.white,
+                          ).copyWith(fontSize: 16),
                         ),
                 ),
               ),
@@ -283,9 +288,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                 onPressed: () => openAppSettings(),
                 child: Text(
                   "Open settings",
-                  style: AppTypography.button15(
-                    color: AppColors.violet,
-                  ),
+                  style: AppTypography.button15(color: AppColors.violet),
                 ),
               ),
 
@@ -334,9 +337,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                 const Gap(2),
                 Text(
                   subtitle,
-                  style: AppTypography.meta13(
-                    color: secondaryText,
-                  ),
+                  style: AppTypography.meta13(color: secondaryText),
                 ),
               ],
             ),
@@ -407,11 +408,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                   color: AppColors.gold,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.check,
-                  size: 12,
-                  color: AppColors.ink,
-                ),
+                child: const Icon(Icons.check, size: 12, color: AppColors.ink),
               ),
             ),
         ],

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322027747216",
+    "project_id": "snapsweep-2103",
+    "storage_bucket": "snapsweep-2103.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322027747216:android:85b87e3da90cc843d1e515",
+        "android_client_info": {
+          "package_name": "com.yousful.snapsweep"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnTGfJmfTmtW5554KqeK-FTiKcLsmpqOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

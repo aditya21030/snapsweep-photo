@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -12,15 +13,13 @@ import 'package:vidsqueeze/vidsqueeze.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../providers/scan_provider.dart';
 
 class MediaCompressorScreen extends StatefulWidget {
   final AssetEntity? initialAsset;
 
-  const MediaCompressorScreen({
-    super.key,
-    this.initialAsset,
-  });
+  const MediaCompressorScreen({super.key, this.initialAsset});
 
   @override
   State<MediaCompressorScreen> createState() => _MediaCompressorScreenState();
@@ -29,10 +28,11 @@ class MediaCompressorScreen extends StatefulWidget {
 class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   AssetEntity? _selectedAsset;
   CompressionPreset _selectedPreset = CompressionPreset.balanced;
-  bool _replaceOriginal = true;
+  bool _replaceOriginal = false;
   int? _resolvedOriginalBytes;
 
   // Active Compression State
+  bool _isPreparingCompression = false;
   bool _isCompressing = false;
   double _compressionProgress = 0.0;
   String? _activeTaskId;
@@ -41,6 +41,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   // Completed State
   CompressionResult? _lastResult;
   VideoPlayerController? _previewController;
+  final List<String> _previewTempFiles = [];
   bool _isSavingToGallery = false;
 
   @override
@@ -56,7 +57,10 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         if (mounted) {
           setState(() {
             if (state.progressPercent != null) {
-              _compressionProgress = (state.progressPercent! / 100.0).clamp(0.0, 1.0);
+              _compressionProgress = (state.progressPercent! / 100.0).clamp(
+                0.0,
+                1.0,
+              );
             }
           });
         }
@@ -69,7 +73,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
       final file = await asset.file;
       if (file != null && await file.exists()) {
         final len = await file.length();
-        if (mounted && len > 0) {
+        if (mounted && _selectedAsset?.id == asset.id && len > 0) {
           setState(() => _resolvedOriginalBytes = len);
         }
       }
@@ -82,8 +86,21 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     if (_isCompressing && _activeTaskId != null) {
       Vidsqueeze.instance.cancel(_activeTaskId!);
     }
-    _previewController?.dispose();
+    unawaited(_disposePreviewAndCleanup());
     super.dispose();
+  }
+
+  Future<void> _disposePreviewAndCleanup() async {
+    final controller = _previewController;
+    _previewController = null;
+    final paths = List<String>.of(_previewTempFiles);
+    _previewTempFiles.clear();
+    await controller?.dispose();
+    for (final path in paths) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
   }
 
   double _getProjectedSavingsRatio(CompressionPreset preset) {
@@ -103,6 +120,22 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   }
 
   Future<void> _startCompression() async {
+    if (_isPreparingCompression || _isCompressing || _isSavingToGallery) return;
+    _isPreparingCompression = true;
+    try {
+      await _prepareAndCompress();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not prepare video: $error')),
+        );
+      }
+    } finally {
+      _isPreparingCompression = false;
+    }
+  }
+
+  Future<void> _prepareAndCompress() async {
     if (_selectedAsset == null || _isCompressing) return;
 
     HapticFeedback.mediumImpact();
@@ -111,7 +144,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     if (file == null || !await file.exists()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not access original video file.')),
+          const SnackBar(
+            content: Text('Could not access original video file.'),
+          ),
         );
       }
       return;
@@ -121,27 +156,30 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     if (fileLength <= 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selected video file is empty or corrupted.')),
+          const SnackBar(
+            content: Text('Selected video file is empty or corrupted.'),
+          ),
         );
       }
       return;
     }
 
-    final String inputUri = file.path.startsWith('content://') || file.path.startsWith('file://')
+    final String inputUri =
+        file.path.startsWith('content://') || file.path.startsWith('file://')
         ? file.path
         : Uri.file(file.path).toString();
 
     final tempDir = await getTemporaryDirectory();
     final taskId = 'compress_${DateTime.now().millisecondsSinceEpoch}';
     final outputName = 'snapsweep_$taskId.mp4';
+    await _disposePreviewAndCleanup();
+    if (!mounted) return;
 
     setState(() {
       _isCompressing = true;
       _compressionProgress = 0.01;
       _activeTaskId = taskId;
       _lastResult = null;
-      _previewController?.dispose();
-      _previewController = null;
     });
 
     try {
@@ -160,13 +198,43 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
 
       final result = await Vidsqueeze.instance.compress(request);
 
-      if (!mounted) return;
+      if (!mounted || _activeTaskId != taskId) return;
+      if (result.usedOriginalSource ||
+          (result.sourceSizeBytes > 0 &&
+              result.outputSizeBytes >= result.sourceSizeBytes)) {
+        if (!result.usedOriginalSource && result.outputPath.isNotEmpty) {
+          final outputFile = File(result.outputPath);
+          final tempRoot = '${tempDir.absolute.path}${Platform.pathSeparator}';
+          if (outputFile.absolute.path.startsWith(tempRoot)) {
+            try {
+              await outputFile.delete();
+            } catch (_) {}
+          }
+        }
+        if (!mounted) return;
+        setState(() {
+          _isCompressing = false;
+          _activeTaskId = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Compression did not reduce this video. The original was kept unchanged.',
+            ),
+          ),
+        );
+        return;
+      }
 
       if (result.outputPath.isNotEmpty) {
         HapticFeedback.heavyImpact();
 
         final outputFile = File(result.outputPath);
         if (await outputFile.exists()) {
+          final tempRoot = '${tempDir.absolute.path}${Platform.pathSeparator}';
+          if (outputFile.absolute.path.startsWith(tempRoot)) {
+            _previewTempFiles.add(outputFile.path);
+          }
           VideoPlayerController? controller;
           try {
             controller = VideoPlayerController.file(outputFile);
@@ -177,15 +245,31 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             controller?.dispose();
             controller = null;
           }
+          if (!mounted) {
+            await controller?.dispose();
+            return;
+          }
 
           setState(() {
             _lastResult = result;
             _isCompressing = false;
+            _activeTaskId = null;
             _previewController = controller;
           });
 
           // Finalize and save result to gallery
           await _finalizeAndSave(result, asset);
+        } else {
+          if (!mounted) return;
+          setState(() {
+            _isCompressing = false;
+            _activeTaskId = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Compression output could not be found.'),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -194,7 +278,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Compression did not produce an output file.')),
+            const SnackBar(
+              content: Text('Compression did not produce an output file.'),
+            ),
           );
         }
       }
@@ -205,9 +291,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
           _isCompressing = false;
           _activeTaskId = null;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Compression failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Compression failed: $e')));
       }
     }
   }
@@ -216,6 +302,7 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final taskId = _activeTaskId;
     if (taskId == null) return;
     HapticFeedback.selectionClick();
+    _activeTaskId = null;
     await Vidsqueeze.instance.cancel(taskId);
     if (mounted) {
       setState(() {
@@ -226,7 +313,10 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     }
   }
 
-  Future<void> _finalizeAndSave(CompressionResult result, AssetEntity original) async {
+  Future<void> _finalizeAndSave(
+    CompressionResult result,
+    AssetEntity original,
+  ) async {
     if (_isSavingToGallery) return;
     setState(() => _isSavingToGallery = true);
 
@@ -240,55 +330,26 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         title: 'compressed_${original.title ?? "video.mp4"}',
       );
 
-      // Clean up temp file from app cache
-      try {
-        if (await outputFile.exists()) {
-          await outputFile.delete();
-        }
-      } catch (_) {}
-
       if (!mounted) return;
 
-      if (_replaceOriginal) {
-        final bool isSmaller = !result.usedOriginalSource && result.outputSizeBytes < result.sourceSizeBytes;
-        if (!isSmaller) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Original video was already optimal. Original file kept in gallery.'),
-              behavior: SnackBarBehavior.floating,
-            ),
+      var message = 'Compressed copy saved to Gallery. Original kept.';
+      if (_replaceOriginal &&
+          !result.usedOriginalSource &&
+          result.outputSizeBytes < result.sourceSizeBytes) {
+        final canTrash = await MediaService.supportsTrash();
+        if (!mounted) return;
+        final deleted = await MediaService.removeAssetsWithIds([original.id]);
+        if (deleted.isNotEmpty && mounted) {
+          await context.read<ScanProvider>().removeAssets(deleted);
+          final savings = AppUtils.formatBytes(
+            result.sourceSizeBytes - result.outputSizeBytes,
           );
-        } else {
-          // 2. Safely move original large video to Trash
-          final List<String> deleted = await PhotoManager.editor.deleteWithIds([original.id]);
-          if (deleted.isNotEmpty && mounted) {
-            await context.read<ScanProvider>().removeAssets(deleted);
-            if (!mounted) return;
-            final savedBytes = result.sourceSizeBytes - result.outputSizeBytes;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: AppColors.ink,
-                content: Text(
-                  'Original deleted! Saved ${AppUtils.formatBytes(savedBytes)}',
-                  style: AppTypography.body15(color: Colors.white),
-                ),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
+          message = canTrash
+              ? 'Compressed copy saved. Original moved to Trash. $savings can be reclaimed after Trash is emptied.'
+              : 'Compressed copy saved. Original deleted. Saved $savings.';
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: AppColors.ink,
-            content: Text(
-              'Compressed copy saved to Gallery! Original kept.',
-              style: AppTypography.body15(color: Colors.white),
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
       }
+      if (mounted) await showOperationResult(context, message: message);
     } catch (e) {
       debugPrint('[Compressor Save Error] $e');
       if (mounted) {
@@ -302,20 +363,34 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
   }
 
   Future<bool> _handleWillPop() async {
+    if (_isSavingToGallery) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saving the compressed video. Please wait.'),
+        ),
+      );
+      return false;
+    }
     if (_isCompressing) {
       final shouldLeave = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           title: const Text('Cancel Compression?'),
-          content: const Text('A video is currently being compressed. Exiting will cancel this operation.'),
+          content: const Text(
+            'A video is currently being compressed. Exiting will cancel this operation.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Stay'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.trashRedLight),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.trashRedLight,
+              ),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Cancel & Leave'),
             ),
@@ -352,7 +427,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
     int totalVideoBytes = 0;
     for (final v in largeVideos) {
@@ -393,14 +470,31 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               if (_selectedAsset == null)
                 Text(
                   '${largeVideos.length} videos | ${AppUtils.formatBytes(totalVideoBytes)}',
-                  style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                  style: AppTypography.caption11(
+                    color: mutedColor,
+                    letterSpacing: 0,
+                  ),
                 ),
             ],
           ),
         ),
         body: _selectedAsset == null
-            ? _buildVideoPickerList(largeVideos, sizes, cardBg, textColor, mutedColor, isDark)
-            : _buildCompressionWorkflow(_selectedAsset!, sizes, cardBg, textColor, mutedColor, isDark),
+            ? _buildVideoPickerList(
+                largeVideos,
+                sizes,
+                cardBg,
+                textColor,
+                mutedColor,
+                isDark,
+              )
+            : _buildCompressionWorkflow(
+                _selectedAsset!,
+                sizes,
+                cardBg,
+                textColor,
+                mutedColor,
+                isDark,
+              ),
       ),
     );
   }
@@ -426,7 +520,11 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   color: AppColors.gold.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.videocam_off_rounded, color: AppColors.gold, size: 52),
+                child: const Icon(
+                  Icons.videocam_off_rounded,
+                  color: AppColors.gold,
+                  size: 52,
+                ),
               ),
               const Gap(16),
               Text(
@@ -463,14 +561,20 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.lilac,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           'SAVE UP TO 80%',
-                          style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                          style: AppTypography.caption11(
+                            color: AppColors.ink,
+                            letterSpacing: 0.8,
+                          ),
                         ),
                       ),
                       const Gap(10),
@@ -494,7 +598,12 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
         // List of candidate videos
         Expanded(
           child: ListView.separated(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + MediaQuery.paddingOf(context).bottom),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              24 + MediaQuery.paddingOf(context).bottom,
+            ),
             itemCount: videos.length,
             separatorBuilder: (_, _) => const Gap(10),
             itemBuilder: (ctx, index) {
@@ -544,21 +653,31 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                                   color: Colors.black.withValues(alpha: 0.45),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                               if (is4k)
                                 Positioned(
                                   bottom: 4,
                                   left: 4,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.gold,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       '4K',
-                                      style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0),
+                                      style: AppTypography.caption11(
+                                        color: AppColors.ink,
+                                        letterSpacing: 0,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -574,19 +693,27 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                                 video.title ?? 'Video #${index + 1}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: AppTypography.subheading17(color: textColor),
+                                style: AppTypography.subheading17(
+                                  color: textColor,
+                                ),
                               ),
                               const Gap(4),
                               Row(
                                 children: [
                                   Text(
                                     AppUtils.formatBytes(size),
-                                    style: AppTypography.meta13(color: AppColors.violet, fontWeight: FontWeight.w700),
+                                    style: AppTypography.meta13(
+                                      color: AppColors.violet,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   const Gap(8),
                                   Text(
                                     AppUtils.formatDuration(duration),
-                                    style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                                    style: AppTypography.caption11(
+                                      color: mutedColor,
+                                      letterSpacing: 0,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -597,8 +724,13 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
                             foregroundColor: AppColors.ink,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           onPressed: () {
                             HapticFeedback.selectionClick();
@@ -610,7 +742,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                           },
                           child: Text(
                             'Compress',
-                            style: AppTypography.button15(color: AppColors.ink).copyWith(fontSize: 12),
+                            style: AppTypography.button15(
+                              color: AppColors.ink,
+                            ).copyWith(fontSize: 12),
                           ),
                         ),
                       ],
@@ -639,7 +773,12 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
     final estimatedSavingsBytes = (originalBytes * savingsRatio).toInt();
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 36 + MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        16,
+        36 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         // Video Preview Container
         Container(
@@ -653,7 +792,8 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             fit: StackFit.expand,
             alignment: Alignment.center,
             children: [
-              if (_previewController != null && _previewController!.value.isInitialized)
+              if (_previewController != null &&
+                  _previewController!.value.isInitialized)
                 Center(
                   child: AspectRatio(
                     aspectRatio: _previewController!.value.aspectRatio,
@@ -672,7 +812,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   child: IconButton(
                     iconSize: 52,
                     icon: Icon(
-                      _previewController!.value.isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+                      _previewController!.value.isPlaying
+                          ? Icons.pause_circle_filled_rounded
+                          : Icons.play_circle_fill_rounded,
                       color: Colors.white,
                     ),
                     onPressed: () {
@@ -706,7 +848,13 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Original Size', style: AppTypography.caption11(color: mutedColor, letterSpacing: 0)),
+                      Text(
+                        'Original Size',
+                        style: AppTypography.caption11(
+                          color: mutedColor,
+                          letterSpacing: 0,
+                        ),
+                      ),
                       const Gap(2),
                       Text(
                         AppUtils.formatBytes(originalBytes),
@@ -714,13 +862,20 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                       ),
                     ],
                   ),
-                  const Icon(Icons.arrow_forward_rounded, color: AppColors.violet, size: 20),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: AppColors.violet,
+                    size: 20,
+                  ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
                         _lastResult != null ? 'Compressed' : 'Projected Size',
-                        style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+                        style: AppTypography.caption11(
+                          color: mutedColor,
+                          letterSpacing: 0,
+                        ),
                       ),
                       const Gap(2),
                       Text(
@@ -736,7 +891,10 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               const Gap(14),
               // Gold Savings Banner
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.gold,
                   borderRadius: BorderRadius.circular(14),
@@ -744,13 +902,19 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.savings_rounded, color: AppColors.ink, size: 20),
+                    const Icon(
+                      Icons.savings_rounded,
+                      color: AppColors.ink,
+                      size: 20,
+                    ),
                     const Gap(8),
                     Text(
                       _lastResult != null
-                          ? (_lastResult!.sourceSizeBytes > 0 && _lastResult!.outputSizeBytes < _lastResult!.sourceSizeBytes
-                              ? 'YOU SAVED ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} | ${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%'
-                              : 'Original was already optimal size')
+                          ? (_lastResult!.sourceSizeBytes > 0 &&
+                                    _lastResult!.outputSizeBytes <
+                                        _lastResult!.sourceSizeBytes
+                                ? 'YOU SAVED ${AppUtils.formatBytes(_lastResult!.sourceSizeBytes - _lastResult!.outputSizeBytes)} | ${(100 - (_lastResult!.outputSizeBytes / _lastResult!.sourceSizeBytes * 100)).toInt()}%'
+                                : 'Original was already optimal size')
                           : 'YOU SAVE ~${AppUtils.formatBytes(estimatedSavingsBytes)} | ${(savingsRatio * 100).toInt()}%',
                       style: AppTypography.button15(color: AppColors.ink),
                     ),
@@ -768,14 +932,18 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
               'Select Preset',
-              style: AppTypography.meta13(color: mutedColor, fontWeight: FontWeight.w700),
+              style: AppTypography.meta13(
+                color: mutedColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           _buildPresetOption(
             preset: CompressionPreset.balanced,
             title: 'Balanced (Recommended)',
             badge: 'BEST',
-            subtitle: '1080p Full HD | Great balance of clarity and ~65% size reduction',
+            subtitle:
+                '1080p Full HD | Great balance of clarity and ~65% size reduction',
             cardBg: cardBg,
             textColor: textColor,
             mutedColor: mutedColor,
@@ -786,7 +954,8 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             preset: CompressionPreset.smallSize,
             title: 'Maximum Space Saver',
             badge: null,
-            subtitle: '720p HD | Perfect for sharing on WhatsApp, saves ~80% space',
+            subtitle:
+                '720p HD | Perfect for sharing on WhatsApp, saves ~80% space',
             cardBg: cardBg,
             textColor: textColor,
             mutedColor: mutedColor,
@@ -797,7 +966,8 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             preset: CompressionPreset.quality,
             title: 'Ultra HD Preserver',
             badge: null,
-            subtitle: '1440p / 2K | Retains highest detail with optimized HEVC bitrate',
+            subtitle:
+                '1440p / 2K | Retains highest detail with optimized HEVC bitrate',
             cardBg: cardBg,
             textColor: textColor,
             mutedColor: mutedColor,
@@ -815,12 +985,16 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                'Delete original file',
+                'Remove original after saving',
                 style: AppTypography.subheading17(color: textColor),
               ),
               subtitle: Text(
-                'Safely frees storage immediately while keeping the compressed copy.',
-                style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                'Android 11+: moves to Trash. Older Android: permanently deletes. Trash must be emptied to reclaim space.',
+                style: AppTypography.caption11(
+                  color: mutedColor,
+                  letterSpacing: 0,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
               value: _replaceOriginal,
               activeThumbColor: AppColors.gold,
@@ -855,15 +1029,24 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
                     value: _compressionProgress,
-                    backgroundColor: isDark ? AppColors.ink : AppColors.lavender,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.violet),
+                    backgroundColor: isDark
+                        ? AppColors.ink
+                        : AppColors.lavender,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.violet,
+                    ),
                     minHeight: 8,
                   ),
                 ),
                 const Gap(20),
                 TextButton(
                   onPressed: _cancelCompression,
-                  child: Text('Cancel', style: AppTypography.button15(color: AppColors.trashRedLight)),
+                  child: Text(
+                    'Cancel',
+                    style: AppTypography.button15(
+                      color: AppColors.trashRedLight,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -876,7 +1059,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             onPressed: _startCompression,
             child: Text(
@@ -892,7 +1077,9 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             onPressed: () {
               HapticFeedback.selectionClick();
@@ -970,14 +1157,20 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                         if (badge != null) ...[
                           const Gap(8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.gold,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               badge,
-                              style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0),
+                              style: AppTypography.caption11(
+                                color: AppColors.ink,
+                                letterSpacing: 0,
+                              ),
                             ),
                           ),
                         ],
@@ -986,7 +1179,11 @@ class _MediaCompressorScreenState extends State<MediaCompressorScreen> {
                     const Gap(3),
                     Text(
                       subtitle,
-                      style: AppTypography.caption11(color: mutedColor, letterSpacing: 0, fontWeight: FontWeight.w400),
+                      style: AppTypography.caption11(
+                        color: mutedColor,
+                        letterSpacing: 0,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                 ),

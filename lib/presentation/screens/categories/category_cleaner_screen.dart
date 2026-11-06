@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,10 +8,12 @@ import 'package:gap/gap.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../providers/scan_provider.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 
 enum CategoryFilter { all, olderThan30Days, videosOnly, photosOnly }
+
 enum CategorySort { largestFirst, newestFirst, oldestFirst }
 
 class CategoryCleanerScreen extends StatefulWidget {
@@ -33,11 +36,6 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   CategorySort _activeSort = CategorySort.largestFirst;
   bool _isProcessing = false;
 
-  List<AssetEntity>? _cachedDisplayAssets;
-  List<AssetEntity>? _lastRawAssets;
-  CategoryFilter? _lastFilter;
-  CategorySort? _lastSort;
-
   Future<void> _cleanSelected() async {
     if (_isProcessing || _selectedIds.isEmpty) return;
     _isProcessing = true;
@@ -45,26 +43,38 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
 
     try {
+      final canTrash = await MediaService.supportsTrash();
+      if (!mounted) return;
       final bool? confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: dialogBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           title: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppColors.trashRedDark : AppColors.trashRedLight).withValues(alpha: 0.15),
+                  color:
+                      (isDark
+                              ? AppColors.trashRedDark
+                              : AppColors.trashRedLight)
+                          .withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.delete_sweep_rounded,
-                  color: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
+                  color: isDark
+                      ? AppColors.trashRedDark
+                      : AppColors.trashRedLight,
                   size: 24,
                 ),
               ),
@@ -78,24 +88,41 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
             ],
           ),
           content: Text(
-            '${_selectedIds.length} item(s) from ${widget.title} will be permanently deleted.',
+            '${_selectedIds.length} item(s) from ${widget.title} will be ${canTrash ? 'moved to Trash' : 'permanently deleted'}.',
             style: AppTypography.body15(color: mutedColor),
           ),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: AppTypography.meta13(color: mutedColor)),
+              child: Text(
+                'Cancel',
+                style: AppTypography.meta13(color: mutedColor),
+              ),
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: isDark ? AppColors.trashRedDark : AppColors.trashRedLight,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                backgroundColor: isDark
+                    ? AppColors.trashRedDark
+                    : AppColors.trashRedLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
               ),
               onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.white),
-              label: Text('Delete Permanently', style: AppTypography.button15(color: Colors.white)),
+              icon: const Icon(
+                Icons.delete_sweep_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
+              label: Text(
+                canTrash ? 'Move to Trash' : 'Delete Permanently',
+                style: AppTypography.button15(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -104,28 +131,32 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
       if (confirm == true && mounted) {
         HapticFeedback.mediumImpact();
         final provider = context.read<ScanProvider>();
-        final count = await provider.smartClean(specificIds: _selectedIds.toList());
+        final count = await provider.smartClean(
+          specificIds: _selectedIds.toList(),
+        );
         if (mounted && count > 0) {
           setState(() {
-            _selectedIds.retainWhere((id) => provider.allScreenshots.any((a) => a.id == id));
-            _cachedDisplayAssets = null;
-            _lastRawAssets = null;
+            _selectedIds.retainWhere(
+              (id) => provider.allScreenshots.any((a) => a.id == id),
+            );
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.ink,
-              content: Text(
-                'Successfully deleted $count items from ${widget.title}',
-                style: AppTypography.body15(color: Colors.white),
-              ),
-            ),
+          await showOperationResult(
+            context,
+            message: 'Removed $count items from ${widget.title}.',
           );
+          if (!mounted) return;
 
+          final liveIds = provider.allScreenshots
+              .map((asset) => asset.id)
+              .toSet();
           final remaining = widget.title == 'Large Videos'
               ? provider.largeVideos.length
               : (widget.title == 'Blurry Photos'
-                  ? provider.blurryPhotos.length
-                  : (provider.categories[widget.title]?.length ?? 0));
+                    ? provider.blurryPhotos.length
+                    : (provider.categories[widget.title]?.length ??
+                          widget.assets
+                              .where((asset) => liveIds.contains(asset.id))
+                              .length));
           if (remaining == 0) {
             Navigator.pop(context);
           }
@@ -165,14 +196,10 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     }
   }
 
-  List<AssetEntity> _filterAndSort(List<AssetEntity> rawAssets, Map<String, int> assetSizes) {
-    if (_cachedDisplayAssets != null &&
-        identical(_lastRawAssets, rawAssets) &&
-        _lastFilter == _activeFilter &&
-        _lastSort == _activeSort) {
-      return _cachedDisplayAssets!;
-    }
-
+  List<AssetEntity> _filterAndSort(
+    List<AssetEntity> rawAssets,
+    Map<String, int> assetSizes,
+  ) {
     final now = DateTime.now();
     final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
@@ -207,21 +234,23 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
         break;
     }
 
-    _lastRawAssets = rawAssets;
-    _lastFilter = _activeFilter;
-    _lastSort = _activeSort;
-    _cachedDisplayAssets = filtered;
     return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.read<ScanProvider>();
-    final currentAssets = context.select<ScanProvider, List<AssetEntity>>((p) {
-      if (widget.title == 'Large Videos') return p.largeVideos;
-      if (widget.title == 'Blurry Photos') return p.blurryPhotos;
-      return p.categories[widget.title] ?? widget.assets;
-    });
+    final provider = context.watch<ScanProvider>();
+    final liveIds = provider.allScreenshots.map((asset) => asset.id).toSet();
+    final currentAssets = widget.title == 'Large Videos'
+        ? provider.largeVideos
+        : widget.title == 'Blurry Photos'
+        ? provider.blurryPhotos
+        : provider.categories[widget.title] ??
+              widget.assets
+                  .where((asset) => liveIds.contains(asset.id))
+                  .toList();
+    final currentIds = currentAssets.map((asset) => asset.id).toSet();
+    _selectedIds.retainAll(currentIds);
 
     final displayAssets = _filterAndSort(currentAssets, provider.assetSizes);
 
@@ -237,13 +266,17 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     final bg = isDark ? AppColors.ink : AppColors.lavender;
     final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
-    final mutedColor = isDark ? AppColors.lavender.withValues(alpha: 0.7) : AppColors.ink.withValues(alpha: 0.6);
+    final mutedColor = isDark
+        ? AppColors.lavender.withValues(alpha: 0.7)
+        : AppColors.ink.withValues(alpha: 0.6);
     final trashRed = isDark ? AppColors.trashRedDark : AppColors.trashRedLight;
     final lilacChip = isDark ? AppColors.violetDeep : AppColors.lilac;
     final lilacChipText = isDark ? AppColors.lilac : AppColors.ink;
 
     final displayedIds = displayAssets.map((a) => a.id).toSet();
-    final bool allCurrentSelected = displayedIds.isNotEmpty && displayedIds.every((id) => _selectedIds.contains(id));
+    final bool allCurrentSelected =
+        displayedIds.isNotEmpty &&
+        displayedIds.every((id) => _selectedIds.contains(id));
 
     return Scaffold(
       backgroundColor: bg,
@@ -258,10 +291,16 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.title, style: AppTypography.heading20(color: textColor)),
+            Text(
+              widget.title,
+              style: AppTypography.heading20(color: textColor),
+            ),
             Text(
               '${_selectedIds.length} of ${displayAssets.length} selected',
-              style: AppTypography.caption11(color: mutedColor, letterSpacing: 0),
+              style: AppTypography.caption11(
+                color: mutedColor,
+                letterSpacing: 0,
+              ),
             ),
           ],
         ),
@@ -270,7 +309,9 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
             icon: Icon(Icons.sort_rounded, color: textColor),
             tooltip: 'Sort items',
             color: cardBg,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             initialValue: _activeSort,
             onSelected: (val) {
               HapticFeedback.selectionClick();
@@ -279,15 +320,24 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
             itemBuilder: (ctx) => [
               PopupMenuItem(
                 value: CategorySort.largestFirst,
-                child: Text('Largest first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Largest first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
               PopupMenuItem(
                 value: CategorySort.newestFirst,
-                child: Text('Newest first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Newest first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
               PopupMenuItem(
                 value: CategorySort.oldestFirst,
-                child: Text('Oldest first', style: AppTypography.meta13(color: textColor)),
+                child: Text(
+                  'Oldest first',
+                  style: AppTypography.meta13(color: textColor),
+                ),
               ),
             ],
           ),
@@ -297,8 +347,13 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
               child: TextButton(
                 style: TextButton.styleFrom(
                   backgroundColor: lilacChip,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   HapticFeedback.selectionClick();
@@ -312,7 +367,10 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                 },
                 child: Text(
                   allCurrentSelected ? 'Deselect' : 'Select all',
-                  style: AppTypography.meta13(color: lilacChipText, fontWeight: FontWeight.w700),
+                  style: AppTypography.meta13(
+                    color: lilacChipText,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -331,7 +389,11 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                         color: AppColors.gold.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check_circle_rounded, size: 52, color: AppColors.gold),
+                      child: const Icon(
+                        Icons.check_circle_rounded,
+                        size: 52,
+                        color: AppColors.gold,
+                      ),
                     ),
                     const Gap(16),
                     Text(
@@ -360,7 +422,9 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                         _buildFilterPill(
                           label: 'All (${currentAssets.length})',
                           isSelected: _activeFilter == CategoryFilter.all,
-                          onTap: () => setState(() => _activeFilter = CategoryFilter.all),
+                          onTap: () => setState(
+                            () => _activeFilter = CategoryFilter.all,
+                          ),
                           cardBg: cardBg,
                           textColor: textColor,
                           isDark: isDark,
@@ -368,8 +432,12 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                         const Gap(8),
                         _buildFilterPill(
                           label: 'Over 30 days',
-                          isSelected: _activeFilter == CategoryFilter.olderThan30Days,
-                          onTap: () => setState(() => _activeFilter = CategoryFilter.olderThan30Days),
+                          isSelected:
+                              _activeFilter == CategoryFilter.olderThan30Days,
+                          onTap: () => setState(
+                            () =>
+                                _activeFilter = CategoryFilter.olderThan30Days,
+                          ),
                           cardBg: cardBg,
                           textColor: textColor,
                           isDark: isDark,
@@ -378,8 +446,11 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                           const Gap(8),
                           _buildFilterPill(
                             label: 'Videos only',
-                            isSelected: _activeFilter == CategoryFilter.videosOnly,
-                            onTap: () => setState(() => _activeFilter = CategoryFilter.videosOnly),
+                            isSelected:
+                                _activeFilter == CategoryFilter.videosOnly,
+                            onTap: () => setState(
+                              () => _activeFilter = CategoryFilter.videosOnly,
+                            ),
                             cardBg: cardBg,
                             textColor: textColor,
                             isDark: isDark,
@@ -389,8 +460,11 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                           const Gap(8),
                           _buildFilterPill(
                             label: 'Photos only',
-                            isSelected: _activeFilter == CategoryFilter.photosOnly,
-                            onTap: () => setState(() => _activeFilter = CategoryFilter.photosOnly),
+                            isSelected:
+                                _activeFilter == CategoryFilter.photosOnly,
+                            onTap: () => setState(
+                              () => _activeFilter = CategoryFilter.photosOnly,
+                            ),
                             cardBg: cardBg,
                             textColor: textColor,
                             isDark: isDark,
@@ -411,13 +485,19 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                           ),
                         )
                       : GridView.builder(
-                          padding: EdgeInsets.fromLTRB(16, 8, 16, 110 + MediaQuery.paddingOf(context).bottom),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 0.8,
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            8,
+                            16,
+                            110 + MediaQuery.paddingOf(context).bottom,
                           ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.8,
+                              ),
                           itemCount: displayAssets.length,
                           itemBuilder: (ctx, index) {
                             final asset = displayAssets[index];
@@ -445,7 +525,8 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                       child: AssetEntityImage(
                                         asset,
                                         isOriginal: false,
-                                        thumbnailSize: const ThumbnailSize.square(300),
+                                        thumbnailSize:
+                                            const ThumbnailSize.square(300),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -455,9 +536,16 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                     Positioned.fill(
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          border: Border.all(color: trashRed, width: 2.5),
-                                          borderRadius: BorderRadius.circular(16),
-                                          color: trashRed.withValues(alpha: 0.32),
+                                          border: Border.all(
+                                            color: trashRed,
+                                            width: 2.5,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          color: trashRed.withValues(
+                                            alpha: 0.32,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -468,13 +556,22 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                       top: 6,
                                       left: 6,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Colors.black.withValues(alpha: 0.7),
-                                          borderRadius: BorderRadius.circular(6),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
-                                          AppUtils.formatDuration(Duration(seconds: asset.duration)),
+                                          AppUtils.formatDuration(
+                                            Duration(seconds: asset.duration),
+                                          ),
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 9,
@@ -491,13 +588,24 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? trashRed : Colors.black.withValues(alpha: 0.55),
+                                        color: isSelected
+                                            ? trashRed
+                                            : Colors.black.withValues(
+                                                alpha: 0.55,
+                                              ),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 1.5),
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        ),
                                       ),
                                       child: Icon(
-                                        isSelected ? Icons.delete_outline_rounded : Icons.circle,
-                                        color: isSelected ? Colors.white : Colors.transparent,
+                                        isSelected
+                                            ? Icons.delete_outline_rounded
+                                            : Icons.circle,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.transparent,
                                         size: 12,
                                       ),
                                     ),
@@ -509,9 +617,14 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                                     left: 5,
                                     right: 5,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.65),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.65,
+                                        ),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -538,10 +651,17 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
       bottomNavigationBar: _selectedIds.isEmpty
           ? null
           : Container(
-              padding: EdgeInsets.fromLTRB(20, 14, 20, 16 + MediaQuery.paddingOf(context).bottom),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                16 + MediaQuery.paddingOf(context).bottom,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.ink2 : AppColors.ink,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Row(
                 children: [
@@ -554,7 +674,9 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                           '${_selectedIds.length} selected',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.subheading17(color: Colors.white),
+                          style: AppTypography.subheading17(
+                            color: Colors.white,
+                          ),
                         ),
                         Text(
                           'Reclaim ${AppUtils.formatBytes(selectedSize)}',
@@ -570,11 +692,20 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.ink,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: _isProcessing ? null : _cleanSelected,
-                    icon: const Icon(Icons.delete_sweep_rounded, size: 20, color: AppColors.ink),
+                    icon: const Icon(
+                      Icons.delete_sweep_rounded,
+                      size: 20,
+                      color: AppColors.ink,
+                    ),
                     label: Text(
                       'Delete Selected',
                       style: AppTypography.button15(color: AppColors.ink),

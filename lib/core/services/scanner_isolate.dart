@@ -6,44 +6,42 @@ import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 
 /// Commands sent to the isolate
-enum ScannerCommand {
-  processBatch,
-  finalize,
-  clear,
-  dispose,
-}
+enum ScannerCommand { processBatch, finalize, clear, dispose }
 
 /// Commands sent from the isolate
-enum ScannerResponse {
-  batchProcessed,
-  finalResult,
-  error,
-  log,
-}
+enum ScannerResponse { batchProcessed, progress, finalResult, error, log }
 
 class ScanItem {
   final String id;
   final String path;
   final Uint8List? thumbBytes;
   final String? cachedMd5;
+  final String? verifiedMd5;
   final String? cachedDHash;
   final bool? cachedIsBlurry;
+  final double? cachedSharpness;
+  final String? cachedBlurType;
   final bool needsDHash;
   final bool needsMd5;
   final bool checkBlur;
   final String? clusterId;
+  final double aspectRatio;
 
   ScanItem({
     required this.id,
     required this.path,
     this.thumbBytes,
     this.cachedMd5,
+    this.verifiedMd5,
     this.cachedDHash,
     this.cachedIsBlurry,
+    this.cachedSharpness,
+    this.cachedBlurType,
     this.needsDHash = true,
     this.needsMd5 = true,
     this.checkBlur = false,
     this.clusterId,
+    this.aspectRatio = 1.0,
   });
 }
 
@@ -57,7 +55,9 @@ class ProcessedItem {
   final String path;
   final String? dHash;
   final String? md5;
+  final String? verifiedMd5;
   final bool isBlurry;
+  final bool blurChecked;
   final String? clusterId;
   final int dHashHigh;
   final int dHashLow;
@@ -70,7 +70,9 @@ class ProcessedItem {
     this.path = '',
     this.dHash,
     this.md5,
+    this.verifiedMd5,
     this.isBlurry = false,
+    this.blurChecked = false,
     this.clusterId,
     this.dHashHigh = 0,
     this.dHashLow = 0,
@@ -111,12 +113,14 @@ int _popcount64(int x) {
   int high = 0;
   int low = 0;
   for (int i = 0; i < 64; i++) {
-    if (hash.codeUnitAt(i) == 49) { // '1'
+    if (hash.codeUnitAt(i) == 49) {
+      // '1'
       high |= (1 << i);
     }
   }
   for (int i = 0; i < 64; i++) {
-    if (hash.codeUnitAt(64 + i) == 49) { // '1'
+    if (hash.codeUnitAt(64 + i) == 49) {
+      // '1'
       low |= (1 << i);
     }
   }
@@ -129,13 +133,13 @@ int _hammingDistanceFast(int h1High, int h1Low, int h2High, int h2Low) {
 }
 
 /// The entry point for the background isolate
-void scannerIsolateEntry(SendPort sendPort) {
+Future<void> scannerIsolateEntry(SendPort sendPort) async {
   final ReceivePort receivePort = ReceivePort();
   sendPort.send(receivePort.sendPort);
 
   final List<ProcessedItem> processedItems = [];
 
-  receivePort.listen((message) async {
+  await for (final message in receivePort) {
     if (message is ScanBatch) {
       try {
         final List<ProcessedItem> results = [];
@@ -143,9 +147,9 @@ void scannerIsolateEntry(SendPort sendPort) {
           String? dHash = item.cachedDHash;
           int dHashHigh = 0;
           int dHashLow = 0;
-          double sharpness = 85.0;
-          String? blurType;
-          double aspectRatio = 1.0;
+          double sharpness = item.cachedSharpness ?? 85.0;
+          String? blurType = item.cachedBlurType;
+          final double aspectRatio = item.aspectRatio;
 
           if (dHash != null && dHash.length == 128) {
             final bits = _stringToBits128(dHash);
@@ -158,7 +162,11 @@ void scannerIsolateEntry(SendPort sendPort) {
 
           // Compute dHash & check sharpness if needed
           if (item.needsDHash && item.thumbBytes != null) {
-            final analysis = _analyzeImage(item.thumbBytes!, sendPort, checkBlur: item.checkBlur);
+            final analysis = _analyzeImage(
+              item.thumbBytes!,
+              sendPort,
+              checkBlur: item.checkBlur,
+            );
             dHash ??= analysis.hash;
             if (analysis.bits != null) {
               dHashHigh = analysis.bits!.$1;
@@ -167,13 +175,15 @@ void scannerIsolateEntry(SendPort sendPort) {
             isBlurry = analysis.isBlurry;
             sharpness = analysis.sharpnessScore;
             blurType = analysis.blurType;
-            aspectRatio = analysis.aspectRatio;
           } else if (item.checkBlur && item.thumbBytes != null) {
-            final analysis = _analyzeImage(item.thumbBytes!, sendPort, checkBlur: true);
+            final analysis = _analyzeImage(
+              item.thumbBytes!,
+              sendPort,
+              checkBlur: true,
+            );
             isBlurry = analysis.isBlurry;
             sharpness = analysis.sharpnessScore;
             blurType = analysis.blurType;
-            aspectRatio = analysis.aspectRatio;
           }
 
           // Sparse Fast-Hash (Tier 2.5) for duplicate verification
@@ -186,7 +196,9 @@ void scannerIsolateEntry(SendPort sendPort) {
             path: item.path,
             dHash: dHash,
             md5: md5Hash,
+            verifiedMd5: item.verifiedMd5,
             isBlurry: isBlurry,
+            blurChecked: item.checkBlur || item.cachedIsBlurry != null,
             clusterId: item.clusterId,
             dHashHigh: dHashHigh,
             dHashLow: dHashLow,
@@ -208,8 +220,20 @@ void scannerIsolateEntry(SendPort sendPort) {
       }
     } else if (message == ScannerCommand.finalize) {
       try {
-        _log(sendPort, "Grouping ${processedItems.length} items by exact and visual matches...");
-        final result = await _computeGroups(processedItems);
+        _log(
+          sendPort,
+          "Grouping ${processedItems.length} items by exact and visual matches...",
+        );
+        final result = await _computeGroups(
+          processedItems,
+          onProgress: (value, status) {
+            sendPort.send({
+              'type': ScannerResponse.progress,
+              'value': value,
+              'status': status,
+            });
+          },
+        );
         sendPort.send({
           'type': ScannerResponse.finalResult,
           'duplicates': result.duplicateGroupIds,
@@ -219,7 +243,10 @@ void scannerIsolateEntry(SendPort sendPort) {
           'blurTypes': result.blurTypes,
         });
       } catch (e) {
-        sendPort.send({'type': ScannerResponse.error, 'message': 'Grouping Error: $e'});
+        sendPort.send({
+          'type': ScannerResponse.error,
+          'message': 'Grouping Error: $e',
+        });
       }
     } else if (message == ScannerCommand.clear) {
       processedItems.clear();
@@ -227,7 +254,7 @@ void scannerIsolateEntry(SendPort sendPort) {
     } else if (message == ScannerCommand.dispose) {
       receivePort.close();
     }
-  });
+  }
 }
 
 class _ImageAnalysisResult {
@@ -236,7 +263,6 @@ class _ImageAnalysisResult {
   final bool isBlurry;
   final double sharpnessScore;
   final String? blurType;
-  final double aspectRatio;
 
   const _ImageAnalysisResult({
     this.hash,
@@ -244,7 +270,6 @@ class _ImageAnalysisResult {
     this.isBlurry = false,
     this.sharpnessScore = 85.0,
     this.blurType,
-    this.aspectRatio = 1.0,
   });
 }
 
@@ -260,14 +285,16 @@ class _BlurAnalysisResult {
   });
 }
 
-_ImageAnalysisResult _analyzeImage(Uint8List bytes, SendPort p, {bool checkBlur = false}) {
+_ImageAnalysisResult _analyzeImage(
+  Uint8List bytes,
+  SendPort p, {
+  bool checkBlur = false,
+}) {
   try {
     final image = img.decodeImage(bytes);
     if (image == null) {
       return const _ImageAnalysisResult();
     }
-
-    final double aspectRatio = (image.height > 0) ? (image.width / image.height) : 1.0;
 
     // 1. Dual-Axis dHash (9x9 downscaled for horizontal and vertical gradients)
     final resized = img.copyResize(image, width: 9, height: 9);
@@ -325,7 +352,6 @@ _ImageAnalysisResult _analyzeImage(Uint8List bytes, SendPort p, {bool checkBlur 
       isBlurry: isBlurry,
       sharpnessScore: sharpness,
       blurType: blurType,
-      aspectRatio: aspectRatio,
     );
   } catch (e) {
     _log(p, "Image Analysis Error: $e");
@@ -479,68 +505,112 @@ Future<String?> _computeFastMd5(String path) async {
   }
 }
 
-Future<ScanResult> _computeGroups(List<ProcessedItem> items) async {
+Future<ScanResult> _computeGroups(
+  List<ProcessedItem> items, {
+  void Function(double, String)? onProgress,
+}) async {
   final List<List<String>> duplicateGroups = [];
   final List<List<String>> similarGroups = [];
   final List<String> blurryPhotoIds = [];
   final Map<String, double> sharpnessScores = {};
   final Map<String, String> blurTypes = {};
-  final Map<String, ProcessedItem> itemMap = {for (final it in items) it.id: it};
+  // An asset can arrive in both the hash and image-analysis streams. Combine
+  // those results before grouping so one asset cannot form a group with itself.
+  final itemMap = <String, ProcessedItem>{};
+  for (final item in items) {
+    final previous = itemMap[item.id];
+    if (previous == null) {
+      itemMap[item.id] = item;
+      continue;
+    }
+    final imageResult = item.dHash != null ? item : previous;
+    itemMap[item.id] = ProcessedItem(
+      id: item.id,
+      path: item.path.isNotEmpty ? item.path : previous.path,
+      dHash: item.dHash ?? previous.dHash,
+      md5: item.md5 ?? previous.md5,
+      verifiedMd5: item.verifiedMd5 ?? previous.verifiedMd5,
+      isBlurry: item.isBlurry || previous.isBlurry,
+      clusterId: item.clusterId ?? previous.clusterId,
+      dHashHigh: imageResult.dHashHigh,
+      dHashLow: imageResult.dHashLow,
+      sharpnessScore: imageResult.sharpnessScore,
+      blurType: item.blurType ?? previous.blurType,
+      aspectRatio: imageResult.aspectRatio,
+    );
+  }
+  final uniqueItems = itemMap.values.toList();
 
   // 1. Exact duplicates: initial group by fast/complete hash
   final exactByHash = <String, List<String>>{};
-  final exactIds = <String>{};
+  final groupedIds = <String>{};
 
-  for (final item in items) {
+  for (final item in uniqueItems) {
     sharpnessScores[item.id] = item.sharpnessScore;
     if (item.blurType != null) {
       blurTypes[item.id] = item.blurType!;
     }
-    if (item.md5 != null && item.md5!.isNotEmpty) {
-      exactByHash.putIfAbsent(item.md5!, () => []).add(item.id);
+    final exactHash = item.verifiedMd5 ?? item.md5;
+    if (exactHash != null && exactHash.isNotEmpty) {
+      exactByHash.putIfAbsent(exactHash, () => []).add(item.id);
     }
     if (item.isBlurry) {
       blurryPhotoIds.add(item.id);
     }
   }
 
-  // Full-hash verification on sparse matches to guarantee 100% duplicate accuracy
-  for (final entry in exactByHash.entries) {
-    final group = entry.value;
-    if (group.length <= 1) continue;
-
-    if (entry.key.startsWith('fast_')) {
-      final verifiedGroups = <String, List<String>>{};
-      for (final id in group) {
-        final it = itemMap[id];
-        String fullKey = entry.key;
-        if (it != null && it.path.isNotEmpty) {
+  // Verify against current file contents. Cached hashes can be stale after an
+  // edit, and sparse hashes can collide.
+  final verificationGroups = exactByHash.values
+      .where((group) => group.length > 1)
+      .toList();
+  var verifiedFiles = 0;
+  final totalFiles = verificationGroups.fold<int>(
+    0,
+    (total, group) => total + group.length,
+  );
+  for (final group in verificationGroups) {
+    final verifiedGroups = <String, List<String>>{};
+    for (var start = 0; start < group.length; start += 4) {
+      final ids = group.sublist(start, math.min(start + 4, group.length));
+      final hashes = await Future.wait(
+        ids.map((id) async {
+          final it = itemMap[id];
+          if (it == null) return null;
+          if (it.verifiedMd5 != null) return (id, it.verifiedMd5!);
+          if (it.path.isEmpty) return null;
           try {
-            final file = File(it.path);
-            if (await file.exists()) {
-              final digest = await md5.bind(file.openRead()).first;
-              fullKey = digest.toString();
-            }
-          } catch (_) {}
-        }
-        verifiedGroups.putIfAbsent(fullKey, () => []).add(id);
-      }
-      for (final vGroup in verifiedGroups.values) {
-        if (vGroup.length > 1) {
-          duplicateGroups.add(vGroup);
-          exactIds.addAll(vGroup);
+            final digest = await md5.bind(File(it.path).openRead()).first;
+            return (id, digest.toString());
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      for (final hash in hashes) {
+        if (hash != null) {
+          verifiedGroups.putIfAbsent(hash.$2, () => []).add(hash.$1);
         }
       }
-    } else {
-      duplicateGroups.add(group);
-      exactIds.addAll(group);
+      verifiedFiles += ids.length;
+      onProgress?.call(
+        0.75 * verifiedFiles / math.max(1, totalFiles),
+        'Verifying exact copies: $verifiedFiles / $totalFiles',
+      );
+    }
+    for (final verifiedGroup in verifiedGroups.values) {
+      if (verifiedGroup.length > 1) {
+        duplicateGroups.add(verifiedGroup);
+        groupedIds.addAll(verifiedGroup);
+      }
     }
   }
 
-  // 1.5 Cross-Resolution & Recompressed Deduplication (WhatsApp & Messaging replicas)
-  // Find items with >= 98.4% visual similarity (Hamming distance <= 2 on 128-bit dHash)
-  // and matching aspect ratio (+- 0.035) that were not caught by MD5 because of re-compression
-  final candidateReplicas = items.where((it) => it.dHash != null && !exactIds.contains(it.id)).toList();
+  // 1.5 Suggest visually similar, recompressed copies for manual review.
+  // These are not byte-for-byte duplicates, even at a low dHash distance.
+  final candidateReplicas = uniqueItems
+      .where((it) => it.dHash?.length == 128 && !groupedIds.contains(it.id))
+      .toList();
   final replicaGroupedIds = <String>{};
 
   // Group candidate replicas by aspect ratio bucket to make comparison fast O(N * bucketSize)
@@ -550,21 +620,51 @@ Future<ScanResult> _computeGroups(List<ProcessedItem> items) async {
     aspectBuckets.putIfAbsent(bucketKey, () => []).add(it);
   }
 
+  onProgress?.call(0.76, 'Matching similar photos...');
   for (final bucketItems in aspectBuckets.values) {
     if (bucketItems.length < 2) continue;
+    // With at most six differing bits, one of seven disjoint hash segments
+    // must match exactly. Index those segments instead of comparing every pair.
+    final signatures = <String, List<int>>{};
+    List<String> keys(ProcessedItem item) {
+      final hash = item.dHash!;
+      return [
+        for (var segment = 0; segment < 7; segment++)
+          '$segment:${hash.substring(128 * segment ~/ 7, 128 * (segment + 1) ~/ 7)}',
+      ];
+    }
+
+    for (var index = 0; index < bucketItems.length; index++) {
+      for (final key in keys(bucketItems[index])) {
+        signatures.putIfAbsent(key, () => []).add(index);
+      }
+    }
     for (int i = 0; i < bucketItems.length; i++) {
       final a = bucketItems[i];
-      if (replicaGroupedIds.contains(a.id) || exactIds.contains(a.id)) continue;
-
+      if (replicaGroupedIds.contains(a.id) || groupedIds.contains(a.id)) {
+        continue;
+      }
+      final candidates = <int>{};
+      for (final key in keys(a)) {
+        candidates.addAll(signatures[key]!);
+      }
+      final indexes = candidates.where((index) => index > i).toList()..sort();
       final List<String> currentReplicaGroup = [];
-      for (int j = i + 1; j < bucketItems.length; j++) {
+      for (final j in indexes) {
         final b = bucketItems[j];
-        if (replicaGroupedIds.contains(b.id) || exactIds.contains(b.id)) continue;
+        if (replicaGroupedIds.contains(b.id) || groupedIds.contains(b.id)) {
+          continue;
+        }
 
         if ((a.aspectRatio - b.aspectRatio).abs() > 0.035) continue;
 
-        final dist = _hammingDistanceFast(a.dHashHigh, a.dHashLow, b.dHashHigh, b.dHashLow);
-        if (dist <= 2) {
+        final dist = _hammingDistanceFast(
+          a.dHashHigh,
+          a.dHashLow,
+          b.dHashHigh,
+          b.dHashLow,
+        );
+        if (dist <= 6) {
           currentReplicaGroup.add(b.id);
           replicaGroupedIds.add(b.id);
         }
@@ -572,10 +672,10 @@ Future<ScanResult> _computeGroups(List<ProcessedItem> items) async {
 
       if (currentReplicaGroup.isNotEmpty) {
         replicaGroupedIds.add(a.id);
-        exactIds.add(a.id);
-        exactIds.addAll(currentReplicaGroup);
+        groupedIds.add(a.id);
+        groupedIds.addAll(currentReplicaGroup);
         currentReplicaGroup.insert(0, a.id);
-        duplicateGroups.add(currentReplicaGroup);
+        similarGroups.add(currentReplicaGroup);
       }
     }
   }
@@ -583,13 +683,15 @@ Future<ScanResult> _computeGroups(List<ProcessedItem> items) async {
   // 2. Similar / Burst groups: group within temporal clusters using 64-bit bitwise popcount
   // Threshold <= 12 (>= 90.6% visual similarity) with transitive drift guard
   final clusterMap = <String, List<ProcessedItem>>{};
-  for (final item in items) {
-    if (item.dHash != null && !exactIds.contains(item.id)) {
-      final cluster = item.clusterId ?? 'global';
+  for (final item in uniqueItems) {
+    if (item.dHash != null && !groupedIds.contains(item.id)) {
+      final cluster = item.clusterId;
+      if (cluster == null) continue;
       clusterMap.putIfAbsent(cluster, () => []).add(item);
     }
   }
 
+  onProgress?.call(0.90, 'Reviewing burst groups...');
   for (final clusterItems in clusterMap.values) {
     if (clusterItems.length < 2) continue;
     final processedInCluster = <String>{};

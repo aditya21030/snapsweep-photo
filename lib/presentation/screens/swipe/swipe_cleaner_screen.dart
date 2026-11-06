@@ -1,3 +1,4 @@
+import '../../common/operation_result.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_utils.dart';
+import '../../../data/services/media_service.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 import '../../providers/scan_provider.dart';
 
@@ -23,22 +25,22 @@ enum SwipeFilterScope {
 
 extension SwipeFilterLabel on SwipeFilterScope {
   String get label => switch (this) {
-        SwipeFilterScope.allPhotos => 'All Photos',
-        SwipeFilterScope.thisMonth => 'This Month',
-        SwipeFilterScope.lastMonth => 'Last Month',
-        SwipeFilterScope.screenshots => 'Screenshots',
-        SwipeFilterScope.social => 'Social & WhatsApp',
-        SwipeFilterScope.blurry => 'Blurry Photos',
-      };
+    SwipeFilterScope.allPhotos => 'All Photos',
+    SwipeFilterScope.thisMonth => 'This Month',
+    SwipeFilterScope.lastMonth => 'Last Month',
+    SwipeFilterScope.screenshots => 'Screenshots',
+    SwipeFilterScope.social => 'Social & WhatsApp',
+    SwipeFilterScope.blurry => 'Blurry Photos',
+  };
 
   IconData get icon => switch (this) {
-        SwipeFilterScope.allPhotos => Icons.photo_library_rounded,
-        SwipeFilterScope.thisMonth => Icons.calendar_today_rounded,
-        SwipeFilterScope.lastMonth => Icons.history_rounded,
-        SwipeFilterScope.screenshots => Icons.screenshot_rounded,
-        SwipeFilterScope.social => Icons.chat_rounded,
-        SwipeFilterScope.blurry => Icons.blur_on_rounded,
-      };
+    SwipeFilterScope.allPhotos => Icons.photo_library_rounded,
+    SwipeFilterScope.thisMonth => Icons.calendar_today_rounded,
+    SwipeFilterScope.lastMonth => Icons.history_rounded,
+    SwipeFilterScope.screenshots => Icons.screenshot_rounded,
+    SwipeFilterScope.social => Icons.chat_rounded,
+    SwipeFilterScope.blurry => Icons.blur_on_rounded,
+  };
 }
 
 enum SwipeAction { trash, keep, skip }
@@ -108,7 +110,13 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
   void _syncAssets(ScanProvider provider) {
     final assets = provider.allScreenshots;
-    final hash = Object.hash(assets.length, _selectedScope);
+    final hash = Object.hash(
+      Object.hashAll(assets.map((a) => a.id)),
+      _selectedScope,
+      Object.hashAll((provider.screenshotAssets).map((a) => a.id)),
+      Object.hashAll((provider.socialMediaAssets).map((a) => a.id)),
+      Object.hashAll(provider.blurryPhotos.map((a) => a.id)),
+    );
 
     if (_lastBuiltScope != _selectedScope || _lastAssetsHash != hash) {
       _lastBuiltScope = _selectedScope;
@@ -136,10 +144,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           }).toList();
           break;
         case SwipeFilterScope.screenshots:
-          filtered = List.from(provider.categories['Screenshots'] ?? []);
+          filtered = List.from(provider.screenshotAssets);
           break;
         case SwipeFilterScope.social:
-          filtered = List.from(provider.categories['Social & WhatsApp'] ?? []);
+          filtered = List.from(provider.socialMediaAssets);
           break;
         case SwipeFilterScope.blurry:
           filtered = List.from(provider.blurryPhotos);
@@ -160,8 +168,12 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           if (group.length > 1)
             for (int i = 1; i < group.length; i++) group[i].id,
       };
-      final Set<String> blurryIds = {for (final a in provider.blurryPhotos) a.id};
-      final Set<String> screenshotIds = {for (final a in (provider.categories['Screenshots'] ?? [])) a.id};
+      final Set<String> blurryIds = {
+        for (final a in provider.blurryPhotos) a.id,
+      };
+      final Set<String> screenshotIds = {
+        for (final a in (provider.screenshotAssets)) a.id,
+      };
 
       filtered.sort((a, b) {
         int scoreA = 0;
@@ -197,7 +209,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
   // Swipe gesture handling
   void _onPanStart(DragStartDetails details) {
-    if (_animController.isAnimating || _currentIndex >= _activeAssets.length) return;
+    if (_animController.isAnimating || _currentIndex >= _activeAssets.length) {
+      return;
+    }
     _isDragging = true;
   }
 
@@ -208,7 +222,8 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
     });
 
     // Provide subtle haptic feedback when crossing threshold
-    if (_dragOffset.dx.abs() > 100 && (_dragOffset.dx - details.delta.dx).abs() <= 100) {
+    if (_dragOffset.dx.abs() > 100 &&
+        (_dragOffset.dx - details.delta.dx).abs() <= 100) {
       HapticFeedback.selectionClick();
     }
   }
@@ -228,13 +243,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
       _triggerSwipe(SwipeAction.skip);
     } else {
       // Rebound to center smoothly
-      _flyOffAnimation = Tween<Offset>(
-        begin: _dragOffset,
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: _animController,
-        curve: Curves.easeOutBack,
-      ));
+      _flyOffAnimation = Tween<Offset>(begin: _dragOffset, end: Offset.zero)
+          .animate(
+            CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+          );
       _animController.forward(from: 0.0);
     }
   }
@@ -242,7 +254,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
   SwipeAction? _pendingAction;
 
   void _triggerSwipe(SwipeAction action) {
-    if (_animController.isAnimating || _currentIndex >= _activeAssets.length) return;
+    if (_animController.isAnimating || _currentIndex >= _activeAssets.length) {
+      return;
+    }
     _pendingAction = action;
 
     Offset target;
@@ -261,13 +275,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
         break;
     }
 
-    _flyOffAnimation = Tween<Offset>(
-      begin: _dragOffset,
-      end: target,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutCubic,
-    ));
+    _flyOffAnimation = Tween<Offset>(begin: _dragOffset, end: target).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    );
     _animController.forward(from: 0.0);
   }
 
@@ -326,7 +336,11 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
     HapticFeedback.mediumImpact();
 
     final provider = context.read<ScanProvider>();
-    final Set<String> selectedForDeletion = _trashQueue.map((a) => a.id).toSet();
+    final Set<String> selectedForDeletion = _trashQueue
+        .map((a) => a.id)
+        .toSet();
+    final canTrash = await MediaService.supportsTrash();
+    if (!mounted) return;
 
     await showModalBottomSheet(
       context: context,
@@ -347,7 +361,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
               height: MediaQuery.of(ctx).size.height * 0.78,
               decoration: BoxDecoration(
                 color: isDark ? AppColors.ink2 : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.3),
@@ -364,7 +380,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                       width: 44,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                        color: isDark
+                            ? const Color(0xFF281357)
+                            : AppColors.lilac,
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
@@ -382,7 +400,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                               Text(
                                 "DELETION QUEUE",
                                 style: AppTypography.caption11(
-                                  color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                                  color: isDark
+                                      ? const Color(0xFFA49EBA)
+                                      : const Color(0xFF5F567A),
                                   letterSpacing: 1.0,
                                 ),
                               ),
@@ -408,7 +428,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                               Text(
                                 "to reclaim",
                                 style: AppTypography.meta13(
-                                  color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                                  color: isDark
+                                      ? const Color(0xFFA49EBA)
+                                      : const Color(0xFF5F567A),
                                 ),
                               ),
                             ],
@@ -419,22 +441,27 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     const Gap(18),
                     Divider(
                       height: 1,
-                      color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5),
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : AppColors.lilac2.withValues(alpha: 0.5),
                     ),
 
                     // 4-Column Grid of Queued Photos (Page 11)
                     Expanded(
                       child: GridView.builder(
                         padding: const EdgeInsets.all(20),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
                         itemCount: _trashQueue.length,
                         itemBuilder: (ctx, index) {
                           final asset = _trashQueue[index];
-                          final isSelected = selectedForDeletion.contains(asset.id);
+                          final isSelected = selectedForDeletion.contains(
+                            asset.id,
+                          );
 
                           return Stack(
                             fit: StackFit.expand,
@@ -443,12 +470,20 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                                 borderRadius: BorderRadius.circular(14),
                                 child: ColorFiltered(
                                   colorFilter: isSelected
-                                      ? const ColorFilter.mode(Colors.transparent, BlendMode.multiply)
-                                      : ColorFilter.mode(Colors.black.withValues(alpha: 0.5), BlendMode.darken),
+                                      ? const ColorFilter.mode(
+                                          Colors.transparent,
+                                          BlendMode.multiply,
+                                        )
+                                      : ColorFilter.mode(
+                                          Colors.black.withValues(alpha: 0.5),
+                                          BlendMode.darken,
+                                        ),
                                   child: AssetEntityImage(
                                     asset,
                                     isOriginal: false,
-                                    thumbnailSize: const ThumbnailSize.square(200),
+                                    thumbnailSize: const ThumbnailSize.square(
+                                      200,
+                                    ),
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -478,7 +513,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
-                                      isSelected ? Icons.close_rounded : Icons.add_rounded,
+                                      isSelected
+                                          ? Icons.close_rounded
+                                          : Icons.add_rounded,
                                       size: 14,
                                       color: Colors.white,
                                     ),
@@ -513,7 +550,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                                   ? null
                                   : () async {
                                       Navigator.pop(ctx);
-                                      await _executeTrash(selectedForDeletion.toList());
+                                      await _executeTrash(
+                                        selectedForDeletion.toList(),
+                                      );
                                     },
                               icon: const Icon(
                                 Icons.delete_outline_rounded,
@@ -521,9 +560,12 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                                 color: AppColors.ink,
                               ),
                               label: Text(
-                                "Delete ${selectedForDeletion.length} Permanently",
-                                style: AppTypography.button15(color: AppColors.ink)
-                                    .copyWith(fontSize: 16),
+                                canTrash
+                                    ? 'Move ${selectedForDeletion.length} to Trash'
+                                    : 'Delete ${selectedForDeletion.length} Permanently',
+                                style: AppTypography.button15(
+                                  color: AppColors.ink,
+                                ).copyWith(fontSize: 16),
                               ),
                             ),
                           ),
@@ -555,7 +597,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
     _isProcessingDelete = true;
 
     try {
-      final List<String> result = await PhotoManager.editor.deleteWithIds(idsToDelete);
+      final List<String> result = await MediaService.removeAssetsWithIds(
+        idsToDelete,
+      );
 
       if (mounted && result.isNotEmpty) {
         HapticFeedback.mediumImpact();
@@ -571,12 +615,11 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           }
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Successfully deleted ${result.length} photos'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        await showOperationResult(
+          context,
+          message: 'Removed ${result.length} photos from the gallery.',
         );
+        if (!mounted) return;
       }
     } catch (e) {
       debugPrint('[SwipeCleaner] Deletion error: $e');
@@ -663,7 +706,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                         Text(
                           'SWIPE TO CLEAN',
                           style: AppTypography.caption11(
-                            color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                            color: isDark
+                                ? const Color(0xFFA49EBA)
+                                : const Color(0xFF5F567A),
                             letterSpacing: 1.0,
                           ),
                         ),
@@ -685,7 +730,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     GestureDetector(
                       onTap: _showReviewBottomSheet,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.gold,
                           borderRadius: BorderRadius.circular(20),
@@ -694,8 +742,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                           totalTrashBytes > 0
                               ? 'Review ${_trashQueue.length} | ${AppUtils.formatBytes(totalTrashBytes)}'
                               : 'Review ${_trashQueue.length}',
-                          style: AppTypography.button15(color: AppColors.ink)
-                              .copyWith(fontSize: 13),
+                          style: AppTypography.button15(
+                            color: AppColors.ink,
+                          ).copyWith(fontSize: 13),
                         ),
                       ),
                     ),
@@ -722,7 +771,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? AppColors.violet
@@ -731,7 +783,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                         border: Border.all(
                           color: isSelected
                               ? AppColors.violet
-                              : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.lilac2.withValues(alpha: 0.5)),
+                              : (isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : AppColors.lilac2.withValues(alpha: 0.5)),
                         ),
                       ),
                       child: Row(
@@ -750,8 +804,12 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                             style: AppTypography.meta13(
                               color: isSelected
                                   ? Colors.white
-                                  : (isDark ? const Color(0xFFA49EBA) : AppColors.ink),
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  : (isDark
+                                        ? const Color(0xFFA49EBA)
+                                        : AppColors.ink),
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                           ),
                         ],
@@ -788,7 +846,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     // 1. Undo Button
                     _buildRoundActionButton(
                       icon: Icons.replay_rounded,
-                      bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                      bgColor: isDark
+                          ? const Color(0xFF281357)
+                          : AppColors.lilac,
                       iconColor: isDark ? Colors.white : AppColors.ink,
                       size: 52,
                       iconSize: 22,
@@ -810,7 +870,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     // 3. Skip Button (Swipe Up)
                     _buildRoundActionButton(
                       icon: Icons.arrow_upward_rounded,
-                      bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                      bgColor: isDark
+                          ? const Color(0xFF281357)
+                          : AppColors.lilac,
                       iconColor: isDark ? Colors.white : AppColors.ink,
                       size: 52,
                       iconSize: 22,
@@ -846,7 +908,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
         List<Widget> cardStack = [];
 
         // Render up to 3 cards for buttery 120 FPS
-        final maxCardsToRender = math.min(3, _activeAssets.length - _currentIndex);
+        final maxCardsToRender = math.min(
+          3,
+          _activeAssets.length - _currentIndex,
+        );
 
         for (int i = maxCardsToRender - 1; i >= 0; i--) {
           final assetIndex = _currentIndex + i;
@@ -892,10 +957,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           }
         }
 
-        return Stack(
-          alignment: Alignment.center,
-          children: cardStack,
-        );
+        return Stack(alignment: Alignment.center, children: cardStack);
       },
     );
   }
@@ -927,7 +989,13 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _buildCardContent(asset, theme, isDark, provider, isBackground: false),
+              _buildCardContent(
+                asset,
+                theme,
+                isDark,
+                provider,
+                isBackground: false,
+              ),
 
               // Interactive Action Badges (Page 10: TRASH in Red, KEEP in Gold)
               if (trashProgress > 0.05)
@@ -962,7 +1030,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                   ),
                 ),
 
-              if (skipProgress > 0.1 && trashProgress < 0.2 && keepProgress < 0.2)
+              if (skipProgress > 0.1 &&
+                  trashProgress < 0.2 &&
+                  keepProgress < 0.2)
                 Positioned(
                   bottom: 90,
                   left: 0,
@@ -972,7 +1042,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                       opacity: skipProgress,
                       child: _buildActionBadge(
                         label: 'SKIP',
-                        bgColor: isDark ? const Color(0xFF281357) : AppColors.lilac,
+                        bgColor: isDark
+                            ? const Color(0xFF281357)
+                            : AppColors.lilac,
                         textColor: isDark ? Colors.white : AppColors.ink,
                         icon: Icons.arrow_upward_rounded,
                         angle: 0.0,
@@ -996,7 +1068,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
   }) {
     final folder = provider.assetAlbumMap[asset.id] ?? 'Camera';
     final size = provider.assetSizes[asset.id] ?? 0;
-    final dateStr = DateFormat('MMM d, yyyy | h:mm a').format(asset.createDateTime);
+    final dateStr = DateFormat(
+      'MMM d, yyyy | h:mm a',
+    ).format(asset.createDateTime);
 
     return Material(
       color: Colors.transparent,
@@ -1056,7 +1130,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
@@ -1073,7 +1150,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                         if (size > 0) ...[
                           const Gap(8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
@@ -1091,7 +1171,10 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                         if (asset.type == AssetType.video) ...[
                           const Gap(8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(12),
@@ -1099,10 +1182,16 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 14),
+                                const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.black,
+                                  size: 14,
+                                ),
                                 const Gap(4),
                                 Text(
-                                  AppUtils.formatDuration(Duration(seconds: asset.duration)),
+                                  AppUtils.formatDuration(
+                                    Duration(seconds: asset.duration),
+                                  ),
                                   style: const TextStyle(
                                     color: Colors.black,
                                     fontSize: 12,
@@ -1163,10 +1252,9 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             const Gap(8),
             Text(
               label,
-              style: AppTypography.button15(color: textColor).copyWith(
-                letterSpacing: 1.2,
-                fontSize: 16,
-              ),
+              style: AppTypography.button15(
+                color: textColor,
+              ).copyWith(letterSpacing: 1.2, fontSize: 16),
             ),
           ],
         ),
@@ -1187,9 +1275,7 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
       width: size,
       height: size,
       child: Material(
-        color: onPressed == null
-            ? Colors.grey.withValues(alpha: 0.2)
-            : bgColor,
+        color: onPressed == null ? Colors.grey.withValues(alpha: 0.2) : bgColor,
         shape: const CircleBorder(),
         elevation: onPressed == null ? 0 : 4,
         shadowColor: bgColor.withValues(alpha: 0.35),
@@ -1214,7 +1300,12 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
     if (isLoading) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 96 + MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            96 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1222,12 +1313,18 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
               const Gap(20),
               Text(
                 'Scanning Photos...',
-                style: AppTypography.heading20(color: isDark ? Colors.white : AppColors.ink),
+                style: AppTypography.heading20(
+                  color: isDark ? Colors.white : AppColors.ink,
+                ),
               ),
               const Gap(6),
               Text(
                 'Organizing photos for swipe review',
-                style: AppTypography.meta13(color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A)),
+                style: AppTypography.meta13(
+                  color: isDark
+                      ? const Color(0xFFA49EBA)
+                      : const Color(0xFF5F567A),
+                ),
               ),
             ],
           ),
@@ -1237,7 +1334,12 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
 
     return Center(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, 96 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          96 + MediaQuery.paddingOf(context).bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1256,16 +1358,20 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
             const Gap(20),
             Text(
               'All Caught Up!',
-              style: AppTypography.title30(color: isDark ? Colors.white : AppColors.ink),
+              style: AppTypography.title30(
+                color: isDark ? Colors.white : AppColors.ink,
+              ),
             ),
             const Gap(8),
             Text(
               _trashQueue.isNotEmpty
-                  ? 'You reviewed this batch. Tap below to confirm and delete items permanently.'
+                  ? 'You reviewed this batch. Tap below to confirm removal.'
                   : 'No photos to review in ${_selectedScope.label}. Choose another album above.',
               textAlign: TextAlign.center,
               style: AppTypography.body15(
-                color: isDark ? const Color(0xFFA49EBA) : const Color(0xFF5F567A),
+                color: isDark
+                    ? const Color(0xFFA49EBA)
+                    : const Color(0xFF5F567A),
               ),
             ),
             const Gap(24),
@@ -1274,13 +1380,19 @@ class _SwipeCleanerScreenState extends State<SwipeCleanerScreen>
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.gold,
                   foregroundColor: AppColors.ink,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 onPressed: _showReviewBottomSheet,
-                icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.ink),
+                icon: const Icon(
+                  Icons.delete_sweep_rounded,
+                  color: AppColors.ink,
+                ),
                 label: Text(
                   'Review ${_trashQueue.length} Queued Items',
                   style: AppTypography.button15(color: AppColors.ink),

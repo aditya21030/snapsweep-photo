@@ -29,14 +29,24 @@ class CategoriesScreen extends StatelessWidget {
         ),
       ),
       body: Selector<ScanProvider, int>(
-        selector: (_, p) => Object.hashAll(
-          p.categories.entries.map((e) => Object.hash(e.key, e.value.length, p.getCategorySize(e.key))),
+        selector: (_, p) => Object.hash(
+          p.categorizationProcessed,
+          p.isCategorizing,
+          p.isLoading,
+          Object.hashAll(
+            p.categories.entries.map(
+              (e) =>
+                  Object.hash(e.key, e.value.length, p.getCategorySize(e.key)),
+            ),
+          ),
         ),
         builder: (context, _, child) {
           final provider = context.read<ScanProvider>();
           final categories = provider.categories;
           if (categories.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.violet));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.violet),
+            );
           }
 
           // Sort category keys: categories with largest total size / count first
@@ -45,15 +55,20 @@ class CategoriesScreen extends StatelessWidget {
               final sizeA = provider.getCategorySize(a);
               final sizeB = provider.getCategorySize(b);
               if (sizeA != sizeB) return sizeB.compareTo(sizeA);
-              return (categories[b]?.length ?? 0).compareTo(categories[a]?.length ?? 0);
+              return (categories[b]?.length ?? 0).compareTo(
+                categories[a]?.length ?? 0,
+              );
             });
 
-          int totalCategorizedBytes = 0;
-          int totalCategorizedCount = 0;
-          for (final entry in categories.entries) {
-            totalCategorizedCount += entry.value.length;
-            totalCategorizedBytes += provider.getCategorySize(entry.key);
-          }
+          final uniqueIds = categories.values
+              .expand((assets) => assets)
+              .map((asset) => asset.id)
+              .toSet();
+          final totalCategorizedCount = uniqueIds.length;
+          final totalCategorizedBytes = uniqueIds.fold<int>(
+            0,
+            (total, id) => total + (provider.assetSizes[id] ?? 0),
+          );
 
           return CustomScrollView(
             cacheExtent: 2000,
@@ -75,29 +90,50 @@ class CategoriesScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.gold,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                'ORGANIZED GALLERY',
-                                style: AppTypography.caption11(color: AppColors.ink, letterSpacing: 0.8),
+                                provider.isCategorizing || provider.isLoading
+                                    ? 'ORGANIZING GALLERY'
+                                    : 'ORGANIZED GALLERY',
+                                style: AppTypography.caption11(
+                                  color: AppColors.ink,
+                                  letterSpacing: 0.8,
+                                ),
                               ),
                             ),
                           ],
                         ),
+                        if (provider.isCategorizing || provider.isLoading) ...[
+                          const Gap(12),
+                          const LinearProgressIndicator(color: AppColors.gold),
+                        ],
                         const Gap(12),
                         Text(
-                          '${categories.length} Categories Organized',
+                          provider.isCategorizing
+                              ? 'Organizing library ${provider.categorizationProcessed} / ${provider.categorizationTotal}'
+                              : '${categories.length} Categories Organized',
                           style: AppTypography.title30(color: Colors.white),
                         ),
                         const Gap(4),
                         Text(
-                          '$totalCategorizedCount items | ${AppUtils.formatBytes(totalCategorizedBytes)} classified',
+                          '$totalCategorizedCount unique items | ${AppUtils.formatBytes(totalCategorizedBytes)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.body15(color: AppColors.lilac),
+                        ),
+                        const Gap(8),
+                        Text(
+                          'Each image belongs to one category.',
+                          style: AppTypography.caption11(
+                            color: AppColors.lilac,
+                          ),
                         ),
                       ],
                     ),
@@ -107,7 +143,12 @@ class CategoriesScreen extends StatelessWidget {
 
               // Categories Grid
               SliverPadding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 100 + MediaQuery.paddingOf(context).bottom),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  100 + MediaQuery.paddingOf(context).bottom,
+                ),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -115,38 +156,28 @@ class CategoriesScreen extends StatelessWidget {
                     mainAxisSpacing: 12,
                     childAspectRatio: 0.76,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final categoryName = sortedKeys[index];
-                      final list = categories[categoryName] ?? [];
-                      final thumb = list.isNotEmpty ? list.first : null;
-                      final sizeStr = provider.getFormattedCategorySize(categoryName);
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final categoryName = sortedKeys[index];
+                    final list = categories[categoryName] ?? [];
+                    final thumb = list.isNotEmpty ? list.first : null;
+                    final sizeStr = provider.getFormattedCategorySize(
+                      categoryName,
+                    );
 
-                      return CategoryCard(
-                        title: categoryName,
-                        count: '${list.length} items',
-                        size: sizeStr,
-                        thumbnail: thumb,
-                        index: index,
-                        onTap: () {
-                          if (categoryName == 'Social & WhatsApp') {
-                            context.push('/messaging-cleaner');
-                          } else if (categoryName == 'Screenshots') {
-                            context.push('/screenshot-cleaner');
-                          } else {
-                            context.push(
-                              '/category-cleaner',
-                              extra: {
-                                'title': categoryName,
-                                'assets': list,
-                              },
-                            );
-                          }
-                        },
-                      );
-                    },
-                    childCount: sortedKeys.length,
-                  ),
+                    return CategoryCard(
+                      title: categoryName,
+                      count: '${list.length} items',
+                      size: sizeStr,
+                      thumbnail: thumb,
+                      index: index,
+                      onTap: () {
+                        context.push(
+                          '/category-cleaner',
+                          extra: {'title': categoryName, 'assets': list},
+                        );
+                      },
+                    );
+                  }, childCount: sortedKeys.length),
                 ),
               ),
             ],

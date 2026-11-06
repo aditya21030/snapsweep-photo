@@ -1,3 +1,5 @@
+import 'presentation/common/online_gate.dart';
+import 'presentation/common/update_gate.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,51 +27,48 @@ import 'presentation/screens/categories/category_cleaner_screen.dart';
 import 'package:flutter/services.dart';
 import 'core/services/ad_service.dart';
 import 'core/services/billing_service.dart';
+import 'core/services/analytics_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Optimize image cache for buttery smooth photo grid scrolling
-  PaintingBinding.instance.imageCache.maximumSize = 2500;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+  await AnalyticsService.initialize();
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark, // Default to dark icons
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarDividerColor: Colors.transparent,
-  ));
+  // Bound thumbnail memory so gallery views leave room for background analysis.
+  PaintingBinding.instance.imageCache.maximumSize = 300;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 64 << 20; // 64 MB
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark, // Default to dark icons
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ),
+  );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  
-  // Initialize billing & ads safely
-  await BillingService.initialize();
-  await AdService.initialize();
-  
+
   runApp(const SnapSweepApp());
 }
 
 final _router = GoRouter(
   initialLocation: '/',
+  observers: [AnalyticsService.observer],
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const SplashScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
     GoRoute(
       path: '/permission',
       builder: (context, state) => const PermissionScreen(),
     ),
-     GoRoute(
-       path: '/home',
-      builder: (context, state) => const HomeScreen(),
-    ),
+    GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
     GoRoute(
       path: '/duplicates',
-      builder: (context, state) => const DuplicatePreviewScreen(), // Defaults to duplicate
+      builder: (context, state) =>
+          const DuplicatePreviewScreen(), // Defaults to duplicate
     ),
     GoRoute(
-       path: '/similar',
-       builder: (context, state) => const DuplicatePreviewScreen(isSimilar: true), 
+      path: '/similar',
+      builder: (context, state) =>
+          const DuplicatePreviewScreen(isSimilar: true),
     ),
     GoRoute(
       path: '/smart-clean',
@@ -152,25 +151,40 @@ class SnapSweepApp extends StatefulWidget {
   State<SnapSweepApp> createState() => _SnapSweepAppState();
 }
 
-class _SnapSweepAppState extends State<SnapSweepApp> {
+class _SnapSweepAppState extends State<SnapSweepApp>
+    with WidgetsBindingObserver {
   StreamSubscription<Uri?>? _widgetSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _handleWidgetLaunch();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(BillingService.reconcileOnResume());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _widgetSub?.cancel();
+    BillingService.dispose();
     super.dispose();
   }
 
   void _handleWidgetLaunch() {
-    HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
-      if (uri != null) _navigateForUri(uri);
-    });
+    HomeWidget.initiallyLaunchedFromHomeWidget()
+        .then((uri) {
+          if (uri != null) _navigateForUri(uri);
+        })
+        .catchError((Object error) {
+          debugPrint('Widget launch lookup failed: $error');
+        });
 
     _widgetSub = HomeWidget.widgetClicked.listen((uri) {
       if (uri != null) _navigateForUri(uri);
@@ -178,17 +192,12 @@ class _SnapSweepAppState extends State<SnapSweepApp> {
   }
 
   void _navigateForUri(Uri uri) {
-    final host = uri.host;
-    final path = uri.path;
-    String? targetRoute;
-    if (host == 'clean' || path.contains('clean')) {
-      targetRoute = '/smart-clean';
-    } else if (host == 'swipe' || path.contains('swipe')) {
-      targetRoute = '/swipe-clean';
-    }
+    if (!mounted) return;
+    final targetRoute = WidgetService.routeForUri(uri);
 
     if (targetRoute != null) {
-      final currentLoc = _router.routerDelegate.currentConfiguration.uri.toString();
+      final currentLoc = _router.routerDelegate.currentConfiguration.uri
+          .toString();
       if (currentLoc == '/' || currentLoc == '/permission') {
         WidgetService.pendingWidgetRoute = targetRoute;
       } else {
@@ -212,6 +221,12 @@ class _SnapSweepAppState extends State<SnapSweepApp> {
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
             routerConfig: _router,
+            builder: (context, child) => UpdateGate(
+              onAccessGranted: () => unawaited(
+                BillingService.initialize().then((_) => AdService.initialize()),
+              ),
+              child: OnlineGate(child: child ?? const SizedBox.shrink()),
+            ),
             debugShowCheckedModeBanner: false,
           );
         },
