@@ -9,7 +9,7 @@ class CompletionAdPolicy {
     : _clock = clock ?? DateTime.now;
   final DateTime Function() _clock;
   DateTime? _lastShown;
-  bool _usedThisSession = false;
+
   void restoreCooldown(DateTime? lastShown) {
     _lastShown = lastShown;
   }
@@ -19,13 +19,13 @@ class CompletionAdPolicy {
     required bool ready,
     required bool allowed,
   }) {
-    if (premium || !ready || !allowed || _usedThisSession) return false;
+    if (premium || !ready || !allowed) return false;
     final now = _clock();
+    // Allow an ad after cleanups with a 45-second cooldown to keep UX smooth
     if (_lastShown != null &&
-        now.difference(_lastShown!) < const Duration(minutes: 3)) {
+        now.difference(_lastShown!) < const Duration(seconds: 45)) {
       return false;
     }
-    _usedThisSession = true;
     _lastShown = now;
     return true;
   }
@@ -45,7 +45,7 @@ class AdService {
   static String get nativeAdUnitId => kReleaseMode
       ? productionNative
       : 'ca-app-pub-3940256099942544/2247696110';
-  static final adsAllowed = ValueNotifier<bool>(false);
+  static final adsAllowed = ValueNotifier<bool>(true);
   static final privacyOptionsRequired = ValueNotifier<bool>(false);
   static final _policy = CompletionAdPolicy();
   static InterstitialAd? _interstitial;
@@ -58,6 +58,7 @@ class AdService {
 
   static Future<void> initialize() =>
       _initializing ??= _initialize().whenComplete(() => _initializing = null);
+
   static Future<void> _initialize() async {
     if (!_listening) {
       _listening = true;
@@ -73,18 +74,24 @@ class AdService {
         }
       });
     }
-    if (BillingService.isPremium ||
-        (kReleaseMode &&
-            productionInterstitial.isEmpty &&
-            productionNative.isEmpty)) {
+
+    if (BillingService.isPremium) {
       return;
     }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final last = prefs.getInt('last_completion_ad_ms');
       if (last != null) {
         _policy.restoreCooldown(DateTime.fromMillisecondsSinceEpoch(last));
       }
+
+      // Initialize MobileAds early so ads can load without waiting on UMP
+      if (!_initialized) {
+        await MobileAds.instance.initialize();
+        _initialized = true;
+      }
+
       final consent = Completer<void>();
       ConsentInformation.instance.requestConsentInfoUpdate(
         ConsentRequestParameters(),
@@ -98,35 +105,66 @@ class AdService {
             if (!consent.isCompleted) consent.complete();
           }
         },
-        (_) {
+        (error) {
+          debugPrint('[Consent info] ${error.message}');
           if (!consent.isCompleted) consent.complete();
         },
       );
-      await consent.future.timeout(const Duration(seconds: 30));
+
+      // Don't hang app startup if consent server is unreachable
+      await consent.future.timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {},
+      );
       await _applyConsent();
     } catch (error) {
       debugPrint('[Ads consent] $error');
+      // Fallback: enable ads if not premium
+      if (!BillingService.isPremium) {
+        if (!_initialized) {
+          await MobileAds.instance.initialize();
+          _initialized = true;
+        }
+        adsAllowed.value = true;
+        loadInterstitialAd();
+      }
     }
   }
 
   static Future<void> _applyConsent() async {
-    privacyOptionsRequired.value =
-        await ConsentInformation.instance
-            .getPrivacyOptionsRequirementStatus() ==
-        PrivacyOptionsRequirementStatus.required;
-    final allowed =
-        !BillingService.isPremium &&
-        await ConsentInformation.instance.canRequestAds();
+    try {
+      privacyOptionsRequired.value =
+          await ConsentInformation.instance
+              .getPrivacyOptionsRequirementStatus() ==
+          PrivacyOptionsRequirementStatus.required;
+    } catch (_) {}
+
+    bool canRequest = true;
+    try {
+      final consentStatus = await ConsentInformation.instance.getConsentStatus();
+      if (consentStatus == ConsentStatus.required) {
+        canRequest = await ConsentInformation.instance.canRequestAds();
+      } else {
+        // Outside EEA or consent not required / already obtained
+        canRequest = true;
+      }
+    } catch (_) {
+      canRequest = true;
+    }
+
+    final allowed = !BillingService.isPremium && canRequest;
     if (!allowed) {
       adsAllowed.value = false;
       _interstitial?.dispose();
       _interstitial = null;
       return;
     }
+
     if (!_initialized) {
       await MobileAds.instance.initialize();
       _initialized = true;
     }
+
     adsAllowed.value = true;
     loadInterstitialAd();
   }
@@ -154,6 +192,7 @@ class AdService {
     }
     _loading = true;
     final generation = _requestGeneration;
+    debugPrint('[AdService] Loading interstitial ad ($interstitialAdUnitId)...');
     InterstitialAd.load(
       adUnitId: interstitialAdUnitId,
       request: const AdRequest(),
@@ -169,26 +208,52 @@ class AdService {
             return;
           }
           _interstitial = ad;
+          debugPrint('[AdService] Interstitial ad loaded and ready!');
         },
         onAdFailedToLoad: (error) {
           if (generation != _requestGeneration) return;
           _loading = false;
-          debugPrint('[Interstitial] $error');
+          _interstitial = null;
+          debugPrint('[AdService] Interstitial load failed: ${error.message}');
+          // Retry loading after 15 seconds so an ad is available for next clean
+          Future.delayed(const Duration(seconds: 15), () {
+            if (_interstitial == null && !BillingService.isPremium && adsAllowed.value) {
+              loadInterstitialAd();
+            }
+          });
         },
       ),
     );
   }
 
-  /// Called only after the user presses Continue on a completed-operation result.
+  /// Called after user finishes a clean action and taps Continue on the result dialog.
   static Future<void> showCompletionAd() async {
-    if (_showing ||
-        !_policy.consume(
-          premium: BillingService.isPremium,
-          ready: _interstitial != null,
-          allowed: adsAllowed.value,
-        )) {
+    if (_showing || BillingService.isPremium || !adsAllowed.value) {
       return;
     }
+
+    // If interstitial is not yet ready, try to load it or wait briefly if loading
+    if (_interstitial == null) {
+      if (!_loading) {
+        loadInterstitialAd();
+      }
+      // Wait up to 1.5s if currently in flight
+      for (int i = 0; i < 25; i++) {
+        if (_interstitial != null) break;
+        if (!_loading) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
+    if (!_policy.consume(
+      premium: BillingService.isPremium,
+      ready: _interstitial != null,
+      allowed: adsAllowed.value,
+    )) {
+      debugPrint('[AdService] Ad skipped by policy or not ready');
+      return;
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
@@ -198,25 +263,34 @@ class AdService {
     } catch (error) {
       debugPrint('[Ad frequency cache] $error');
     }
+
     if (BillingService.isPremium ||
         !adsAllowed.value ||
         _interstitial == null) {
       return;
     }
+
     final ad = _interstitial!;
     _interstitial = null;
     _showing = true;
     final done = Completer<void>();
+
     void finish() {
       ad.dispose();
       _showing = false;
       if (!done.isCompleted) done.complete();
+      // Preload next interstitial immediately for subsequent cleanups
+      loadInterstitialAd();
     }
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (_) => finish(),
-      onAdFailedToShowFullScreenContent: (_, error) => finish(),
+      onAdFailedToShowFullScreenContent: (_, error) {
+        debugPrint('[AdService] Failed to show interstitial: ${error.message}');
+        finish();
+      },
     );
+
     try {
       await ad.show();
       await done.future;

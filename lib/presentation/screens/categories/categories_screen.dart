@@ -147,7 +147,7 @@ class CategoriesScreen extends StatelessWidget {
                   16,
                   0,
                   16,
-                  100 + MediaQuery.paddingOf(context).bottom,
+                  124 + MediaQuery.paddingOf(context).bottom,
                 ),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

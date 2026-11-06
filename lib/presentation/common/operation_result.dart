@@ -6,7 +6,7 @@ Future<void> showOperationResult(
   required String message,
 }) async {
   if (!context.mounted) return;
-  final continueTapped = await showDialog<bool>(
+  await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Completed'),
@@ -19,8 +19,8 @@ Future<void> showOperationResult(
       ],
     ),
   );
-  // Back or an outside tap dismisses the result without triggering an ad.
-  if (continueTapped == true && context.mounted) {
+  // Trigger completion ad regardless of whether user tapped Continue or dismissed
+  if (context.mounted) {
     await AdService.showCompletionAd();
   }
 }
