@@ -90,6 +90,7 @@ class AdService {
       if (!_initialized) {
         await MobileAds.instance.initialize();
         _initialized = true;
+        loadInterstitialAd();
       }
 
       final consent = Completer<void>();

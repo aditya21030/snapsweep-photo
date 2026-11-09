@@ -32,7 +32,8 @@ import 'core/services/analytics_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AnalyticsService.initialize();
-  unawaited(BillingService.initialize().then((_) => AdService.initialize()));
+  unawaited(BillingService.initialize());
+  unawaited(AdService.initialize());
 
   // Bound thumbnail memory so gallery views leave room for background analysis.
   PaintingBinding.instance.imageCache.maximumSize = 300;
