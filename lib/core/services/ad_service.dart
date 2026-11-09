@@ -34,7 +34,7 @@ class CompletionAdPolicy {
 class AdService {
   static const productionInterstitial = String.fromEnvironment(
     'ADMOB_INTERSTITIAL_AD_UNIT_ID',
-    defaultValue: 'ca-app-pub-9787505657189806/2924077899',
+    defaultValue: 'ca-app-pub-8510502760785545/8753913671',
   );
   static const productionNative = String.fromEnvironment(
     'ADMOB_NATIVE_AD_UNIT_ID',

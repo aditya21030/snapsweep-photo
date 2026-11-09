@@ -245,7 +245,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Advertising configuration
 
 Android's AdMob application ID is configured in `android/app/src/main/AndroidManifest.xml`.
-The confirmed production interstitial unit is `ca-app-pub-9787505657189806/2924077899` and is the default for release builds. The native placement remains disabled until its separate unit is supplied. To override units:
+The confirmed production interstitial unit is `ca-app-pub-8510502760785545/8753913671` and is the default for release builds. The native placement remains disabled until its separate unit is supplied. To override units:
 
 ```powershell
 .\scripts\build-release.ps1 -InterstitialAdUnitId YOUR_INTERSTITIAL_UNIT_ID -NativeAdUnitId YOUR_NATIVE_UNIT_ID
