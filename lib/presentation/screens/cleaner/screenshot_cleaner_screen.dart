@@ -45,7 +45,7 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
   ScreenshotAgeFilter _activeAgeFilter = ScreenshotAgeFilter.olderThan30Days;
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
-  String _sortOption = 'date_desc'; // 'date_desc', 'date_asc', 'size'
+  final String _sortOption = 'date_desc'; // 'date_desc', 'date_asc', 'size'
 
   @override
   void initState() {
@@ -335,42 +335,6 @@ class _ScreenshotCleanerScreenState extends State<ScreenshotCleanerScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<String>(
-            icon: Icon(Icons.sort_rounded, color: textColor),
-            tooltip: 'Sort items',
-            color: cardBg,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            initialValue: _sortOption,
-            onSelected: (val) {
-              HapticFeedback.selectionClick();
-              setState(() => _sortOption = val);
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(
-                value: 'date_desc',
-                child: Text(
-                  'Newest date first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'date_asc',
-                child: Text(
-                  'Oldest date first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'size',
-                child: Text(
-                  'Largest size first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-            ],
-          ),
           if (displayedScreenshots.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 12),

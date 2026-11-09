@@ -6,21 +6,18 @@ Future<void> showOperationResult(
   required String message,
 }) async {
   if (!context.mounted) return;
-  await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Completed'),
-      content: Text(message),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Continue'),
-        ),
-      ],
-    ),
-  );
-  // Trigger completion ad regardless of whether user tapped Continue or dismissed
-  if (context.mounted) {
-    await AdService.showCompletionAd();
+
+  // Immediately trigger interstitial ad upon operation completion without blocking dialog
+  await AdService.showCompletionAd();
+
+  // Show a lightweight floating confirmation toast
+  if (context.mounted && message.isNotEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }

@@ -12,9 +12,7 @@ import '../../../data/services/media_service.dart';
 import '../../providers/scan_provider.dart';
 import '../../common/fullscreen_photo_viewer.dart';
 
-enum CategoryFilter { all, olderThan30Days, videosOnly, photosOnly }
 
-enum CategorySort { largestFirst, newestFirst, oldestFirst }
 
 class CategoryCleanerScreen extends StatefulWidget {
   final String title;
@@ -32,8 +30,6 @@ class CategoryCleanerScreen extends StatefulWidget {
 
 class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
   final Set<String> _selectedIds = {};
-  CategoryFilter _activeFilter = CategoryFilter.all;
-  CategorySort _activeSort = CategorySort.largestFirst;
   bool _isProcessing = false;
 
   Future<void> _cleanSelected() async {
@@ -196,45 +192,17 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     }
   }
 
-  List<AssetEntity> _filterAndSort(
+  List<AssetEntity> _sortAssets(
     List<AssetEntity> rawAssets,
     Map<String, int> assetSizes,
   ) {
-    final now = DateTime.now();
-    final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-
-    // Filter
-    List<AssetEntity> filtered = rawAssets.where((asset) {
-      switch (_activeFilter) {
-        case CategoryFilter.all:
-          return true;
-        case CategoryFilter.olderThan30Days:
-          return asset.createDateTime.isBefore(thirtyDaysAgo);
-        case CategoryFilter.videosOnly:
-          return asset.type == AssetType.video;
-        case CategoryFilter.photosOnly:
-          return asset.type == AssetType.image;
-      }
-    }).toList();
-
-    // Sort
-    switch (_activeSort) {
-      case CategorySort.largestFirst:
-        filtered.sort((a, b) {
-          final sizeA = assetSizes[a.id] ?? 0;
-          final sizeB = assetSizes[b.id] ?? 0;
-          return sizeB.compareTo(sizeA);
-        });
-        break;
-      case CategorySort.newestFirst:
-        filtered.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
-        break;
-      case CategorySort.oldestFirst:
-        filtered.sort((a, b) => a.createDateTime.compareTo(b.createDateTime));
-        break;
-    }
-
-    return filtered;
+    final list = List<AssetEntity>.from(rawAssets);
+    list.sort((a, b) {
+      final sizeA = assetSizes[a.id] ?? 0;
+      final sizeB = assetSizes[b.id] ?? 0;
+      return sizeB.compareTo(sizeA);
+    });
+    return list;
   }
 
   @override
@@ -252,19 +220,16 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     final currentIds = currentAssets.map((asset) => asset.id).toSet();
     _selectedIds.retainAll(currentIds);
 
-    final displayAssets = _filterAndSort(currentAssets, provider.assetSizes);
+    final displayAssets = _sortAssets(currentAssets, provider.assetSizes);
 
     int selectedSize = 0;
     for (var id in _selectedIds) {
       selectedSize += provider.assetSizes[id] ?? 0;
     }
 
-    final hasVideos = currentAssets.any((a) => a.type == AssetType.video);
-    final hasPhotos = currentAssets.any((a) => a.type == AssetType.image);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.ink : AppColors.lavender;
-    final cardBg = isDark ? AppColors.ink2 : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.ink;
     final mutedColor = isDark
         ? AppColors.lavender.withValues(alpha: 0.7)
@@ -305,42 +270,6 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<CategorySort>(
-            icon: Icon(Icons.sort_rounded, color: textColor),
-            tooltip: 'Sort items',
-            color: cardBg,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            initialValue: _activeSort,
-            onSelected: (val) {
-              HapticFeedback.selectionClick();
-              setState(() => _activeSort = val);
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(
-                value: CategorySort.largestFirst,
-                child: Text(
-                  'Largest first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-              PopupMenuItem(
-                value: CategorySort.newestFirst,
-                child: Text(
-                  'Newest first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-              PopupMenuItem(
-                value: CategorySort.oldestFirst,
-                child: Text(
-                  'Oldest first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-            ],
-          ),
           if (displayAssets.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -409,82 +338,14 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                 ),
               ),
             )
-          : Column(
-              children: [
-                // Quick Filter Chips
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-                  child: SizedBox(
-                    height: 38,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildFilterPill(
-                          label: 'All (${currentAssets.length})',
-                          isSelected: _activeFilter == CategoryFilter.all,
-                          onTap: () => setState(
-                            () => _activeFilter = CategoryFilter.all,
-                          ),
-                          cardBg: cardBg,
-                          textColor: textColor,
-                          isDark: isDark,
-                        ),
-                        const Gap(8),
-                        _buildFilterPill(
-                          label: 'Over 30 days',
-                          isSelected:
-                              _activeFilter == CategoryFilter.olderThan30Days,
-                          onTap: () => setState(
-                            () =>
-                                _activeFilter = CategoryFilter.olderThan30Days,
-                          ),
-                          cardBg: cardBg,
-                          textColor: textColor,
-                          isDark: isDark,
-                        ),
-                        if (hasVideos) ...[
-                          const Gap(8),
-                          _buildFilterPill(
-                            label: 'Videos only',
-                            isSelected:
-                                _activeFilter == CategoryFilter.videosOnly,
-                            onTap: () => setState(
-                              () => _activeFilter = CategoryFilter.videosOnly,
-                            ),
-                            cardBg: cardBg,
-                            textColor: textColor,
-                            isDark: isDark,
-                          ),
-                        ],
-                        if (hasPhotos) ...[
-                          const Gap(8),
-                          _buildFilterPill(
-                            label: 'Photos only',
-                            isSelected:
-                                _activeFilter == CategoryFilter.photosOnly,
-                            onTap: () => setState(
-                              () => _activeFilter = CategoryFilter.photosOnly,
-                            ),
-                            cardBg: cardBg,
-                            textColor: textColor,
-                            isDark: isDark,
-                          ),
-                        ],
-                      ],
-                    ),
+          : displayAssets.isEmpty
+              ? Center(
+                  child: Text(
+                    'No items in this category',
+                    style: AppTypography.body15(color: mutedColor),
                   ),
-                ),
-
-                // Media Grid
-                Expanded(
-                  child: displayAssets.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No items match filter',
-                            style: AppTypography.body15(color: mutedColor),
-                          ),
-                        )
-                      : GridView.builder(
+                )
+              : GridView.builder(
                           padding: EdgeInsets.fromLTRB(
                             16,
                             8,
@@ -643,9 +504,6 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
                             );
                           },
                         ),
-                ),
-              ],
-            ),
 
       // Sticky Bottom Reclaim Bar
       bottomNavigationBar: _selectedIds.isEmpty
@@ -717,34 +575,4 @@ class _CategoryCleanerScreenState extends State<CategoryCleanerScreen> {
     );
   }
 
-  Widget _buildFilterPill({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color cardBg,
-    required Color textColor,
-    required bool isDark,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.violet : cardBg,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: AppTypography.meta13(
-            color: isSelected ? Colors.white : textColor,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
 }

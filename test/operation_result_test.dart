@@ -4,7 +4,7 @@ import 'package:snapsweep/presentation/common/operation_result.dart';
 
 void main() {
   testWidgets(
-    'cleanup result completes after Continue even when no ad is ready',
+    'cleanup result completes directly without continue dialog',
     (tester) async {
       var completed = false;
       await tester.pumpWidget(
@@ -26,13 +26,11 @@ void main() {
         ),
       );
       await tester.tap(find.text('Finish'));
-      await tester.pumpAndSettle();
-      expect(find.text('Removed 3 items.'), findsOneWidget);
-      expect(completed, false);
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
+      await tester.pump();
       expect(completed, true);
       expect(find.text('Completed'), findsNothing);
+      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Removed 3 items.'), findsOneWidget);
     },
   );
 }

@@ -35,7 +35,7 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
   MessagingTabFilter _currentFilter = MessagingTabFilter.all;
   final Set<String> _selectedIds = {};
   bool _isProcessing = false;
-  String _sortOption = 'size'; // 'size' or 'date'
+  final String _sortOption = 'size'; // 'size' or 'date'
 
   bool _isSentMedia(AssetEntity asset, Map<String, String> albumMap) {
     final album = (albumMap[asset.id] ?? '').toLowerCase();
@@ -326,35 +326,6 @@ class _MessagingCleanerScreenState extends State<MessagingCleanerScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<String>(
-            icon: Icon(Icons.sort_rounded, color: textColor),
-            tooltip: 'Sort items',
-            color: cardBg,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            initialValue: _sortOption,
-            onSelected: (val) {
-              HapticFeedback.selectionClick();
-              setState(() => _sortOption = val);
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(
-                value: 'size',
-                child: Text(
-                  'Largest size first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'date',
-                child: Text(
-                  'Newest date first',
-                  style: AppTypography.meta13(color: textColor),
-                ),
-              ),
-            ],
-          ),
           if (displayedAssets.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 12),
