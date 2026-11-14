@@ -180,7 +180,7 @@ class _DuplicatePreviewScreenState extends State<DuplicatePreviewScreen> {
         },
       );
 
-      if (confirm == true) {
+      if (confirm == true && mounted) {
         HapticFeedback.mediumImpact();
         List<String> idsToDelete = _selectedIds.toList();
         try {

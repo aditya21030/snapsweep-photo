@@ -12,7 +12,7 @@ Future<void> showOperationResult(
 
   // Show a lightweight floating confirmation toast
   if (context.mounted && message.isNotEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(message),
         duration: const Duration(seconds: 2),

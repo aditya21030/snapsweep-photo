@@ -17,10 +17,12 @@ $previousTemp = $env:TEMP
 $previousTmp = $env:TMP
 $previousJavaOptions = $env:JAVA_TOOL_OPTIONS
 $previousGradleOptions = $env:GRADLE_OPTS
+$previousGradleUserHome = $env:GRADLE_USER_HOME
 Push-Location -LiteralPath $projectRoot
 try {
     $env:TEMP = $buildTemp
     $env:TMP = $buildTemp
+    $env:GRADLE_USER_HOME = 'D:\.gradle'
     $env:JAVA_TOOL_OPTIONS = ($previousJavaOptions + ' -Djava.io.tmpdir="' + $buildTemp + '"').Trim()
     $env:GRADLE_OPTS = ($previousGradleOptions + ' -Dorg.gradle.daemon=false').Trim()
     $artifactType = if ($AppBundle) { 'appbundle' } else { 'apk' }
@@ -35,5 +37,6 @@ try {
     $env:TMP = $previousTmp
     $env:JAVA_TOOL_OPTIONS = $previousJavaOptions
     $env:GRADLE_OPTS = $previousGradleOptions
+    $env:GRADLE_USER_HOME = $previousGradleUserHome
     Pop-Location
 }

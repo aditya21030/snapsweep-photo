@@ -239,7 +239,7 @@ class AdService {
         loadInterstitialAd();
       }
       // Wait up to 1.5s if currently in flight
-      for (int i = 0; i < 30; i++) {
+      for (int i = 0; i < 15; i++) {
         if (_interstitial != null) break;
         if (!_loading) break;
         await Future.delayed(const Duration(milliseconds: 100));

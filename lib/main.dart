@@ -224,9 +224,10 @@ class _SnapSweepAppState extends State<SnapSweepApp>
             themeMode: themeProvider.themeMode,
             routerConfig: _router,
             builder: (context, child) => UpdateGate(
-              onAccessGranted: () => unawaited(
-                BillingService.initialize().then((_) => AdService.initialize()),
-              ),
+              onAccessGranted: () {
+                unawaited(BillingService.initialize());
+                unawaited(AdService.initialize());
+              },
               child: OnlineGate(child: child ?? const SizedBox.shrink()),
             ),
             debugShowCheckedModeBanner: false,

@@ -37,6 +37,7 @@ class _OnlineGateState extends State<OnlineGate> with WidgetsBindingObserver {
   bool _online = false;
   bool _opened = false;
   bool _checking = false;
+  bool _initialCheckCompleted = false;
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _OnlineGateState extends State<OnlineGate> with WidgetsBindingObserver {
       _online = reachable;
       _opened = _opened || reachable;
       _checking = false;
+      _initialCheckCompleted = true;
     });
   }
 
@@ -86,7 +88,9 @@ class _OnlineGateState extends State<OnlineGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final allowed = BillingService.isPremium || _online;
+    final allowed = BillingService.isPremium ||
+        _online ||
+        (!_initialCheckCompleted && _checking);
     return Stack(
       children: [
         if (_opened || allowed)
